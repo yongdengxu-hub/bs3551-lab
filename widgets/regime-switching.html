@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Regime switching: TAR / STAR — BS3551</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <div style="flex:1 1 auto;">
+      <div class="code">BS3551 · interactive lab</div>
+      <h1>Regime switching: TAR / STAR</h1>
+      <p class="sub">A sharp threshold versus a smooth logistic transition. Exam question 4.</p>
+    </div>
+    <a class="crumb" href="../index.html">← back to lab</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="muted" style="margin-top:18px;">
+    Many series behave differently in different states: expansion vs recession, low vs high inflation. A two-regime
+    model runs one AR(1) when the transition variable is low and another when it is high. <b>TAR</b> flips between
+    them sharply at a threshold; <b>STAR</b> uses a logistic function to move <i>smoothly</i> from one regime to the
+    other, with γ controlling how abrupt the switch is. The transition curve on the left is the heart of it: as
+    γ grows, the smooth STAR curve approaches the TAR step.
+  </p>
+
+  <div class="card">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="display:flex;gap:8px;">
+        <button class="chip method" data-m="tar">TAR (sharp)</button>
+        <button class="chip method active" data-m="star">STAR (smooth)</button>
+      </div>
+      <button id="reseed" style="font-size:12px;padding:4px 9px;">↻ new sample</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 16px;margin-bottom:14px;" id="ctrls"></div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px;">
+      <div class="metric" id="mc-r1"></div>
+      <div class="metric" id="mc-r2"></div>
+      <div class="metric" id="mc-hi"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div>
+        <div class="small muted" style="margin-bottom:2px;">Transition weight G on regime 2</div>
+        <div style="position:relative;height:200px;"><canvas id="gChart"></canvas></div>
+      </div>
+      <div>
+        <div class="small muted" style="margin-bottom:2px;">Simulated series (blue = regime 1, coral = regime 2)</div>
+        <div style="position:relative;height:200px;"><canvas id="yChart"></canvas></div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+      <button id="mathsBtn" style="font-size:12px;padding:4px 9px;">Show the maths</button>
+    </div>
+    <div id="mathsPanel" class="maths" style="display:none;margin-top:8px;"></div>
+  </div>
+
+  <h3>How to use it in class</h3>
+  <p class="muted small">On STAR, slide γ from small to large and watch the transition curve sharpen from a gentle
+  S-shape into the TAR step, that is the single picture that explains "smooth" transition. Set very different
+  persistences (φ₁ low, φ₂ near 1) so the two regimes visibly behave differently, then switch to TAR to contrast the
+  hard boundary. The colouring of the series shows which regime each observation sits in.</p>
+
+  <footer class="site">BS3551 Financial Econometrics · interactive lab · no login, no data collected.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="../assets/tslib.js"></script>
+<script>
+(function(){
+  const Chart=window.Chart, T=window.TS;
+  const isDark=matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color=isDark?'#C9C7BD':'#52514C'; Chart.defaults.font.size=11;
+  const gridC=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)';
+  const C1=[55,138,221], C2=[216,90,48], GLINE='#9B59B6', VL=isDark?'rgba(255,255,255,0.4)':'rgba(0,0,0,0.4)';
+  const f2=x=>Number(x).toFixed(2), Tn=160;
+
+  let model='star', c1=-0.8, phi1=0.55, c2=0.8, phi2=0.55, thr=0, gam=3, sigma=0.5, seed=20260626;
+  let gChart, yChart, zGrid=[];
+  function lerp(w){const c=C1.map((v,i)=>Math.round(v+(C2[i]-v)*Math.max(0,Math.min(1,w))));return 'rgb('+c[0]+','+c[1]+','+c[2]+')';}
+
+  const vline={id:'vline',afterDraw(c){const i=c.$vl;if(i==null)return;const x=c.scales.x.getPixelForValue(i),y=c.scales.y;c.ctx.save();c.ctx.strokeStyle=VL;c.ctx.setLineDash([4,3]);c.ctx.lineWidth=1;c.ctx.beginPath();c.ctx.moveTo(x,y.top);c.ctx.lineTo(x,y.bottom);c.ctx.stroke();c.ctx.restore();}};
+
+  function build(){
+    const lo=-5, hi=5, M=121; zGrid=[]; for(let i=0;i<M;i++) zGrid.push(lo+(hi-lo)*i/(M-1));
+    const Gvals=zGrid.map(z=> model==='star'? T.logisticG(z,gam,thr) : (z>thr?1:0));
+    const thrIdx=Math.round((thr-lo)/(hi-lo)*(M-1));
+    gChart.data.labels=zGrid.map(z=>f2(z));
+    gChart.data.datasets[0].data=Gvals; gChart.$vl=thrIdx; gChart.update('none');
+
+    const sim=T.regimeSimulate({c1,phi1,c2,phi2,r:thr,gamma:gam,sigma,smooth:model==='star'},Tn,T.rng(seed));
+    yChart.data.labels=sim.y.map((_,i)=>i+1);
+    yChart.data.datasets[0].data=sim.y;
+    yChart.data.datasets[0].pointBackgroundColor=sim.w.map(lerp);
+    yChart.data.datasets[1].data=sim.y.map(()=>thr);
+    yChart.update('none');
+
+    const a1=Math.abs(phi1)<1?c1/(1-phi1):NaN, a2=Math.abs(phi2)<1?c2/(1-phi2):NaN;
+    const share=sim.w.reduce((a,b)=>a+(b>0.5?1:0),0)/sim.w.length;
+    card('mc-r1','regime 1 centre',isFinite(a1)?f2(a1):'—','c₁/(1−φ₁)');
+    card('mc-r2','regime 2 centre',isFinite(a2)?f2(a2):'—','c₂/(1−φ₂)');
+    card('mc-hi','time in regime 2',Math.round(share*100)+'%');
+    if(document.getElementById('mathsPanel').style.display!=='none') renderMaths();
+  }
+  function card(id,label,val,note){document.getElementById(id).innerHTML='<div class="small muted" style="font-size:12px;">'+label+'</div><div style="font-size:19px;font-weight:500;">'+val+'</div>'+(note?'<div class="tiny">'+note+'</div>':'');}
+  function renderMaths(){
+    const trans = model==='star'
+      ? 'with the <b>logistic</b> weight <span class="mono">G(y₍t−1₎) = 1 / (1 + e^(−γ(y₍t−1₎ − r)))</span>, γ = '+f2(gam)+'.'
+      : 'with the <b>sharp</b> indicator <span class="mono">G(y₍t−1₎) = 1[ y₍t−1₎ &gt; r ]</span>.';
+    document.getElementById('mathsPanel').innerHTML=
+      '<div style="margin-bottom:6px;"><b>Two-regime AR(1).</b><br /><span class="mono">yₜ = (1 − G)(c₁ + φ₁ y₍t−1₎) + G (c₂ + φ₂ y₍t−1₎) + εₜ</span></div>'
+      +'<div class="small" style="margin-bottom:6px;">'+trans+' The transition variable here is the lagged level y₍t−1₎ and the threshold is r = '+f2(thr)+'.</div>'
+      +'<div class="small" style="margin-bottom:6px;"><b>TAR vs STAR.</b> TAR jumps between regimes at r; STAR moves through them continuously. As γ → ∞ the logistic becomes the step, so TAR is the limit of STAR.</div>'
+      +'<div class="small"><b>Forecasting.</b> Because next period’s regime weight depends on the current state, the forecast is a G-weighted blend of the two regime forecasts, not a single linear rule.</div>';
+  }
+
+  function slider(id,label,val){
+    const cfg={c1:[-3,3,0.1],phi1:[-0.95,0.95,0.05],c2:[-3,3,0.1],phi2:[-0.95,0.95,0.05],thr:[-3,3,0.1],gam:[0.3,12,0.1],sigma:[0.1,1.5,0.1]}[id];
+    return '<label class="small muted">'+label+': <span id="'+id+'o" style="font-weight:500;color:var(--color-text-primary);">'+val+'</span>'
+      +'<br /><input type="range" id="'+id+'" min="'+cfg[0]+'" max="'+cfg[1]+'" step="'+cfg[2]+'" value="'+val+'" style="width:100%;" /></label>';
+  }
+  function buildCtrls(){
+    let html=slider('c1','c₁ (regime 1 const)',f2(c1))+slider('phi1','φ₁ (regime 1)',f2(phi1))
+      +slider('c2','c₂ (regime 2 const)',f2(c2))+slider('phi2','φ₂ (regime 2)',f2(phi2))
+      +slider('thr','threshold r',f2(thr));
+    if(model==='star') html+=slider('gam','γ (smoothness)',f2(gam));
+    html+=slider('sigma','noise σ',f2(sigma));
+    document.getElementById('ctrls').innerHTML=html;
+    const ids=['c1','phi1','c2','phi2','thr','sigma'].concat(model==='star'?['gam']:[]);
+    ids.forEach(id=>{const el=document.getElementById(id);el.addEventListener('input',()=>{const v=parseFloat(el.value);setVar(id,v);document.getElementById(id+'o').textContent=f2(v);build();});});
+  }
+  function setVar(id,v){ if(id==='c1')c1=v;else if(id==='phi1')phi1=v;else if(id==='c2')c2=v;else if(id==='phi2')phi2=v;else if(id==='thr')thr=v;else if(id==='gam')gam=v;else sigma=v; }
+
+  function mkCharts(){
+    gChart=new Chart(document.getElementById('gChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[
+      {data:[],borderColor:GLINE,borderWidth:2,pointRadius:0,tension:model==='star'?0.1:0}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{min:-0.05,max:1.05,grid:{color:gridC}},x:{grid:{display:false},title:{display:true,text:'transition variable y₍t−1₎'},ticks:{maxTicksLimit:7}}}},plugins:[vline]});
+    yChart=new Chart(document.getElementById('yChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[
+      {data:[],borderColor:isDark?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.18)',borderWidth:0.8,pointRadius:2.5,pointBackgroundColor:[],order:1},
+      {data:[],borderColor:VL,borderWidth:1,borderDash:[4,3],pointRadius:0,order:2}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC}},x:{display:false,grid:{display:false}}}}});
+  }
+
+  document.querySelectorAll('.method').forEach(b=>b.addEventListener('click',()=>{model=b.dataset.m;document.querySelectorAll('.method').forEach(x=>x.classList.toggle('active',x===b));mkCharts();buildCtrls();build();}));
+  document.getElementById('reseed').addEventListener('click',()=>{seed=(seed+101)|0;build();});
+  document.getElementById('mathsBtn').addEventListener('click',()=>{const p=document.getElementById('mathsPanel'),s=p.style.display==='none';p.style.display=s?'block':'none';document.getElementById('mathsBtn').textContent=s?'Hide the maths':'Show the maths';build();});
+
+  mkCharts(); buildCtrls(); build();
+})();
+</script>
+<style>.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;}</style>
+</body>
+</html>

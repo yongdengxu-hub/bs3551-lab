@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GARCH volatility — BS3551</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <div style="flex:1 1 auto;">
+      <div class="code">BS3551 · interactive lab</div>
+      <h1>GARCH volatility</h1>
+      <p class="sub">Volatility clustering, persistence and Value-at-Risk. Exam question 3.</p>
+    </div>
+    <a class="crumb" href="../index.html">← back to lab</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="muted" style="margin-top:18px;">
+    Financial returns are not equally volatile through time: calm spells and turbulent spells cluster. A
+    GARCH(1,1) captures this by letting today's variance depend on yesterday's shock and yesterday's variance,
+    σ²<sub>t</sub> = ω + α r²<sub>t−1</sub> + β σ²<sub>t−1</sub>. The sum α+β is the <b>persistence</b>: push it toward
+    1 and the clustering becomes long-lived. Switch to GJR to add a <b>leverage</b> term so bad news raises volatility
+    more than good news.
+  </p>
+
+  <div class="card">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="display:flex;gap:8px;">
+        <button class="chip method active" data-m="garch">GARCH(1,1)</button>
+        <button class="chip method" data-m="gjr">GJR-GARCH</button>
+      </div>
+      <button id="reseed" style="font-size:12px;padding:4px 9px;">↻ new sample</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:14px;" id="ctrls"></div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+      <span id="statBadge" class="badge"></span>
+      <span class="small muted" id="persNote"></span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:8px;">
+      <div class="metric" id="mc-pers"></div>
+      <div class="metric" id="mc-vol"></div>
+      <div class="metric" id="mc-hl"></div>
+      <div class="metric" id="mc-var"></div>
+    </div>
+
+    <div class="small muted" style="margin-bottom:2px;">Returns r<sub>t</sub> with ±1.96 σ<sub>t</sub> band (the band breathes = clustering)</div>
+    <div style="position:relative;height:165px;"><canvas id="retChart"></canvas></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
+      <div>
+        <div class="small muted" style="margin-bottom:2px;">Conditional variance σ²<sub>t</sub></div>
+        <div style="position:relative;height:175px;"><canvas id="varChart"></canvas></div>
+      </div>
+      <div>
+        <div class="small muted" style="margin-bottom:2px;">Variance forecast → long-run level</div>
+        <div style="position:relative;height:175px;"><canvas id="fcChart"></canvas></div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+      <button id="mathsBtn" style="font-size:12px;padding:4px 9px;">Show the maths</button>
+    </div>
+    <div id="mathsPanel" class="maths" style="display:none;margin-top:8px;"></div>
+  </div>
+
+  <h3>How to use it in class</h3>
+  <p class="muted small">Start with persistence near 0.95 and point out the breathing band, that is volatility clustering.
+  Drag α+β down toward 0.5 and the clustering disappears (returns look like constant-variance noise). Switch to GJR and
+  show the leverage term lifting volatility after negative returns. The forecast panel makes the mean-reversion of
+  variance to ω/(1−α−β) explicit, which is the multi-step forecast on the exam.</p>
+
+  <footer class="site">BS3551 Financial Econometrics · interactive lab · no login, no data collected.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="../assets/tslib.js"></script>
+<script>
+(function(){
+  const Chart=window.Chart, T=window.TS;
+  const isDark=matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color=isDark?'#C9C7BD':'#52514C'; Chart.defaults.font.size=11;
+  const gridC=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)';
+  const RET='#2D7DD2', BAND=isDark?'rgba(55,138,221,0.18)':'rgba(55,138,221,0.14)', VAR='#9B59B6', FC='#1D9E75', MEAN='#D85A30';
+  const f2=x=>Number(x).toFixed(2), f3=x=>Number(x).toFixed(3), f1=x=>Number(x).toFixed(1);
+  const Z99=2.326, Tn=250, H=24;
+
+  let model='garch', omega=0.02, alpha=0.1, beta=0.85, gamma=0.08, seed=20260626;
+  let retChart, varChart, fcChart;
+
+  function gpar(){ return model==='gjr'?gamma:0; }
+  function persistence(){ return alpha+beta+gpar()/2; }
+
+  function build(){
+    const sim=T.garchSimulate(omega,alpha,beta,gpar(),Tn,T.rng(seed));
+    const r=sim.r, s2=sim.sigma2, sig=s2.map(Math.sqrt);
+    const lastR=r[r.length-1], lastS2=s2[s2.length-1];
+    const fc=T.garchForecast(omega,alpha,beta,gpar(),lastR,lastS2,H);
+    const pers=persistence(), stat=pers<1, uncond=stat?omega/(1-pers):NaN;
+    const halflife=pers<1&&pers>0?Math.log(0.5)/Math.log(pers):NaN;
+    const var1=Z99*Math.sqrt(fc[0]);
+
+    const labels=r.map((_,i)=>i+1);
+    const upper=sig.map(s=>1.96*s), lower=sig.map(s=>-1.96*s);
+    retChart.data.labels=labels;
+    retChart.data.datasets[0].data=lower; retChart.data.datasets[1].data=upper; retChart.data.datasets[2].data=r;
+    retChart.update('none');
+    varChart.data.labels=labels; varChart.data.datasets[0].data=s2;
+    varChart.data.datasets[1].data=labels.map(()=>uncond); varChart.update('none');
+    fcChart.data.labels=fc.map((_,i)=>i+1); fcChart.data.datasets[0].data=fc;
+    fcChart.data.datasets[1].data=fc.map(()=>uncond); fcChart.update('none');
+
+    const sb=document.getElementById('statBadge'); sb.className='badge '+(stat?'ok':'bad');
+    sb.textContent=stat?'covariance stationary':'non-stationary (α+β ≥ 1)';
+    document.getElementById('persNote').textContent=stat?'variance reverts to its long-run level':'variance has no finite long-run level';
+    card('mc-pers','persistence α+β'+(model==='gjr'?'+γ/2':''),f3(pers));
+    card('mc-vol','long-run volatility',stat?f3(Math.sqrt(uncond)):'—',stat?'√(ω/(1−α−β))':'');
+    card('mc-hl','shock half-life',isFinite(halflife)?f1(halflife)+' days':'∞');
+    card('mc-var','1-day 99% VaR',f3(var1),'2.326 × σ₍t+1₎');
+    if(document.getElementById('mathsPanel').style.display!=='none') renderMaths(uncond,pers,halflife,fc,var1,lastR,lastS2);
+  }
+  function card(id,label,val,note){document.getElementById(id).innerHTML='<div class="small muted" style="font-size:12px;">'+label+'</div><div style="font-size:19px;font-weight:500;">'+val+'</div>'+(note?'<div class="tiny">'+note+'</div>':'');}
+  function renderMaths(uncond,pers,hl,fc,var1,lastR,lastS2){
+    const eq= model==='gjr'
+      ? '<span class="mono">σ²ₜ = ω + (α + γ·1[rₜ₋₁&lt;0]) r²ₜ₋₁ + β σ²ₜ₋₁</span>'
+      : '<span class="mono">σ²ₜ = ω + α r²ₜ₋₁ + β σ²ₜ₋₁</span>';
+    document.getElementById('mathsPanel').innerHTML=
+      '<div style="margin-bottom:6px;"><b>Conditional variance.</b> '+eq+'</div>'
+      +'<div class="small" style="margin-bottom:6px;"><b>Long-run (unconditional) variance.</b> σ̄² = ω/(1 − α − β'+(model==='gjr'?' − γ/2':'')+') = '+(isFinite(uncond)?f3(uncond):'undefined')+'. Requires persistence '+f3(pers)+' &lt; 1.</div>'
+      +'<div class="small" style="margin-bottom:6px;"><b>Multi-step forecast.</b> σ²₍t+h₎ = σ̄² + (α+β'+(model==='gjr'?'+γ/2':'')+')^{h−1}(σ²₍t+1₎ − σ̄²). Here σ²₍t+1₎ = '+f3(fc[0])+' → σ̄² as h grows; half-life ≈ '+(isFinite(hl)?f1(hl):'∞')+' days.</div>'
+      +'<div class="small"><b>Value-at-Risk.</b> 1-day 99% VaR = 2.326 × σ₍t+1₎ = '+f3(var1)+' (return units), the loss exceeded 1% of the time.</div>';
+  }
+
+  function slider(id,label,val){
+    const cfg={omega:[0.005,0.3,0.005],alpha:[0,0.4,0.01],beta:[0,0.98,0.01],gamma:[0,0.4,0.01]}[id];
+    return '<label class="small muted">'+label+': <span id="'+id+'o" style="font-weight:500;color:var(--color-text-primary);">'+val+'</span>'
+      +'<br /><input type="range" id="'+id+'" min="'+cfg[0]+'" max="'+cfg[1]+'" step="'+cfg[2]+'" value="'+val+'" style="width:100%;" /></label>';
+  }
+  function buildCtrls(){
+    let html=slider('omega','ω (baseline)',f3(omega))+slider('alpha','α (news / ARCH)',f2(alpha))+slider('beta','β (memory / GARCH)',f2(beta));
+    if(model==='gjr') html+=slider('gamma','γ (leverage)',f2(gamma));
+    document.getElementById('ctrls').innerHTML=html;
+    bind('omega',f3); bind('alpha',f2); bind('beta',f2); if(model==='gjr') bind('gamma',f2);
+  }
+  function bind(id,fmt){ const el=document.getElementById(id); el.addEventListener('input',()=>{ const v=parseFloat(el.value); if(id==='omega')omega=v; else if(id==='alpha')alpha=v; else if(id==='beta')beta=v; else gamma=v; document.getElementById(id+'o').textContent=fmt(v); build(); }); }
+
+  function mkCharts(){
+    retChart=new Chart(document.getElementById('retChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[
+      {data:[],borderColor:'transparent',pointRadius:0,order:3},
+      {data:[],borderColor:'transparent',backgroundColor:BAND,fill:'-1',pointRadius:0,order:3},
+      {data:[],borderColor:RET,borderWidth:0.9,pointRadius:0,order:1}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC}},x:{display:false,grid:{display:false}}}}});
+    varChart=new Chart(document.getElementById('varChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[
+      {data:[],borderColor:VAR,borderWidth:1.2,pointRadius:0,tension:0.1,order:1},
+      {data:[],borderColor:MEAN,borderWidth:1,borderDash:[5,4],pointRadius:0,order:2}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC},beginAtZero:true},x:{display:false,grid:{display:false}}}}});
+    fcChart=new Chart(document.getElementById('fcChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[
+      {data:[],borderColor:FC,borderWidth:1.8,pointRadius:2,tension:0.05,order:1},
+      {data:[],borderColor:MEAN,borderWidth:1,borderDash:[5,4],pointRadius:0,order:2}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC},beginAtZero:true},x:{grid:{display:false},title:{display:true,text:'days ahead'}}}}});
+  }
+
+  document.querySelectorAll('.method').forEach(b=>b.addEventListener('click',()=>{model=b.dataset.m;document.querySelectorAll('.method').forEach(x=>x.classList.toggle('active',x===b));buildCtrls();build();}));
+  document.getElementById('reseed').addEventListener('click',()=>{seed=(seed+101)|0;build();});
+  document.getElementById('mathsBtn').addEventListener('click',()=>{const p=document.getElementById('mathsPanel'),s=p.style.display==='none';p.style.display=s?'block':'none';document.getElementById('mathsBtn').textContent=s?'Hide the maths':'Show the maths';build();});
+
+  mkCharts(); buildCtrls(); build();
+})();
+</script>
+<style>.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;}</style>
+</body>
+</html>

@@ -17,19 +17,21 @@ BS3551-AI-Lab/
 ├─ assets/
 │  ├─ styles.css                   Shared look (light/dark; edit --brand to rebrand)
 │  └─ tslib.js                     Time-series maths, derived from first principles, shared by all widgets
-├─ widgets/
-│  ├─ acf-pacf-explorer.html       LIVE — AR/MA/ARMA fingerprints + "name that model" quiz   (Topic 2, exam Q1)
-│  ├─ forecast-intervals.html      LIVE — multi-step AR forecasts + fanning 95% intervals     (Topic 2, exam Q2)
-│  └─ lasso-vs-ols.html            LIVE — LASSO/Ridge shrinkage, sparsity, train-vs-test U    (Topic 6, exam Q5)
+├─ widgets/                        All six live; each is one self-contained file using assets/ below
+│  ├─ acf-pacf-explorer.html       AR/MA/ARMA fingerprints + "name that model" quiz           (Topic 2, exam Q1)
+│  ├─ forecast-intervals.html      Multi-step AR forecasts + fanning 95% intervals            (Topic 2, exam Q2)
+│  ├─ garch-volatility.html        GARCH/GJR clustering, persistence, forecast, 1-day VaR     (Topic 4, exam Q3)
+│  ├─ regime-switching.html        TAR vs STAR logistic transition, regime-coloured series    (Topic 5, exam Q4)
+│  ├─ lasso-vs-ols.html            LASSO/Ridge shrinkage, sparsity, train-vs-test U           (Topic 6, exam Q5)
+│  └─ var-irf.html                 Bivariate VAR(1) impulse responses + Granger causality     (Topic 7, exam Q6)
 ├─ tutor/
 │  ├─ SYSTEM_PROMPT.md             Socratic tutor instructions to paste into a Custom GPT / Claude Project
 │  └─ SETUP_GUIDE.md               How to stand it up + the exam-leakage file checklist
 └─ README.md                       This file
 ```
 
-Planned widgets (stubs shown on the landing page): GARCH volatility (Q3), regime switching TAR/STAR (Q4),
-VAR & impulse responses (Q6). Each is one self-contained HTML file using the same
-`assets/tslib.js` + `styles.css`, so adding one does not touch the others.
+All six topic widgets (one per examined topic) are live. Each is a single self-contained HTML file using the
+same `assets/tslib.js` + `styles.css`, so editing or adding one does not touch the others.
 
 ## Preview locally
 Open `index.html` in a browser. The widgets pull Chart.js from a CDN, so you need an internet connection;
@@ -57,10 +59,9 @@ serves them as-is.)
 1. **Now:** publish the two live widgets; link them from the ARMA tutorial. Lowest risk, immediate engagement.
 2. **This term:** stand up the AI tutor as a Custom GPT (see `tutor/SETUP_GUIDE.md`); pilot with a willing
    tutorial group; collect informal feedback.
-3. **Next:** build the GARCH widget (Q3); the LASSO/Ridge widget (Q5) is already live and supports the
-   brand-new Topic 6, where students have no prior exposure.
-4. **Later:** regime-switching and VAR widgets; optionally embed the tutor directly in the site via a small
-   serverless function calling the Claude API (only worth it if the Custom-GPT pilot shows real demand).
+3. **Done:** all six topic widgets are built and deployed (one per examined topic, Q1–Q6).
+4. **Later:** optionally embed the tutor directly in the site via a small serverless function calling the
+   Claude API (only worth it if the Custom-GPT pilot shows real demand).
 
 ## Design principles
 - **Correct maths or nothing.** All quantities come from `tslib.js`, computed from first principles (MA(∞)

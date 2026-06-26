@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VAR &amp; impulse responses — BS3551</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <div style="flex:1 1 auto;">
+      <div class="code">BS3551 · interactive lab</div>
+      <h1>VAR &amp; impulse responses</h1>
+      <p class="sub">Shock one variable, trace it through the system. Exam question 6.</p>
+    </div>
+    <a class="crumb" href="../index.html">← back to lab</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="muted" style="margin-top:18px;">
+    A bivariate VAR(1) lets two series feed back on each other:
+    <span class="mono">y₁ₜ = a₁₁ y₁,t−1 + a₁₂ y₂,t−1 + e₁ₜ</span> and
+    <span class="mono">y₂ₜ = a₂₁ y₁,t−1 + a₂₂ y₂,t−1 + e₂ₜ</span>.
+    The off-diagonal terms carry the cross-effects: a₁₂ is whether y₂ helps predict y₁ (Granger causality), and the
+    impulse responses show how a one-off shock propagates over time. Shocks here are orthogonal and of unit size, so
+    the response at horizon h is simply A<sup>h</sup>.
+  </p>
+
+  <div class="card">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <span id="statBadge" class="badge"></span>
+      <button id="preset" style="font-size:12px;padding:4px 9px;">↻ reset coefficients</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 16px;margin-bottom:14px;" id="ctrls"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div class="metric" id="gc1"></div>
+      <div class="metric" id="gc2"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+          <span class="small muted">Shock to y₁</span><span id="leg1" class="tiny"></span>
+        </div>
+        <div style="position:relative;height:185px;"><canvas id="irf1"></canvas></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+          <span class="small muted">Shock to y₂</span><span id="leg2" class="tiny"></span>
+        </div>
+        <div style="position:relative;height:185px;"><canvas id="irf2"></canvas></div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+      <button id="mathsBtn" style="font-size:12px;padding:4px 9px;">Show the maths</button>
+    </div>
+    <div id="mathsPanel" class="maths" style="display:none;margin-top:8px;"></div>
+  </div>
+
+  <h3>How to use it in class</h3>
+  <p class="muted small">Set a₁₂ = 0 and the "shock to y₂" panel shows y₁ flat, y₂ does not Granger-cause y₁. Give it a
+  value and y₁ now responds. Push the diagonal terms up toward 1 and the responses decay more slowly (more persistent
+  system); cross the stationarity boundary and the badge flips and responses stop dying out. This is the IRF and
+  Granger-causality content of question 6.</p>
+
+  <footer class="site">BS3551 Financial Econometrics · interactive lab · no login, no data collected.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="../assets/tslib.js"></script>
+<script>
+(function(){
+  const Chart=window.Chart, T=window.TS;
+  const isDark=matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color=isDark?'#C9C7BD':'#52514C'; Chart.defaults.font.size=11;
+  const gridC=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)';
+  const Y1='#2D7DD2', Y2='#D85A30', H=16;
+  const f2=x=>Number(x).toFixed(2);
+  const DEF={a11:0.5,a12:0.3,a21:0.1,a22:0.4};
+  let A={a11:0.5,a12:0.3,a21:0.1,a22:0.4};
+  let irf1,irf2;
+
+  document.getElementById('leg1').innerHTML='<span style="color:'+Y1+';">— y₁</span> &nbsp; <span style="color:'+Y2+';">— y₂</span>';
+  document.getElementById('leg2').innerHTML='<span style="color:'+Y1+';">— y₁</span> &nbsp; <span style="color:'+Y2+';">— y₂</span>';
+
+  function build(){
+    const M=[[A.a11,A.a12],[A.a21,A.a22]];
+    const irf=T.var1IRF(M,H);
+    const labels=irf.map((_,h)=>h);
+    irf1.data.labels=labels;
+    irf1.data.datasets[0].data=irf.map(m=>m[0][0]);
+    irf1.data.datasets[1].data=irf.map(m=>m[1][0]);
+    irf1.update('none');
+    irf2.data.labels=labels;
+    irf2.data.datasets[0].data=irf.map(m=>m[0][1]);
+    irf2.data.datasets[1].data=irf.map(m=>m[1][1]);
+    irf2.update('none');
+
+    const stat=T.var1Stationary(M);
+    const sb=document.getElementById('statBadge'); sb.className='badge '+(stat?'ok':'bad');
+    sb.textContent=stat?'stationary (eigenvalues inside unit circle)':'non-stationary (an eigenvalue ≥ 1)';
+
+    gcCard('gc1','y₂ → y₁ (Granger)', Math.abs(A.a12)>1e-9, 'via a₁₂ = '+f2(A.a12));
+    gcCard('gc2','y₁ → y₂ (Granger)', Math.abs(A.a21)>1e-9, 'via a₂₁ = '+f2(A.a21));
+    if(document.getElementById('mathsPanel').style.display!=='none') renderMaths(stat);
+  }
+  function gcCard(id,label,yes,note){
+    document.getElementById(id).innerHTML='<div class="small muted" style="font-size:12px;">'+label+'</div>'
+      +'<div style="font-size:18px;font-weight:500;color:'+(yes?'var(--color-text-success)':'var(--color-text-secondary)')+';">'+(yes?'yes':'no')+'</div>'
+      +'<div class="tiny">'+note+'</div>';
+  }
+  function renderMaths(stat){
+    document.getElementById('mathsPanel').innerHTML=
+      '<div style="margin-bottom:6px;"><b>Matrix form.</b> <span class="mono">yₜ = A y₍t−1₎ + eₜ</span>, &nbsp; A = [['+f2(A.a11)+', '+f2(A.a12)+'], ['+f2(A.a21)+', '+f2(A.a22)+']].</div>'
+      +'<div class="small" style="margin-bottom:6px;"><b>Impulse responses.</b> With orthogonal unit shocks the response at horizon h is Aʰ, so element (i, j) is the response of yᵢ to a shock in yⱼ. They die out only if the system is stationary.</div>'
+      +'<div class="small" style="margin-bottom:6px;"><b>Granger causality.</b> y₂ does not Granger-cause y₁ when a₁₂ = 0 (and vice-versa for a₂₁). The formal test is H₀: a₁₂ = 0, checked with an F or χ² test on that coefficient.</div>'
+      +'<div class="small"><b>Stationarity.</b> Needs both eigenvalues of A inside the unit circle. Current system is '+(stat?'stationary.':'non-stationary.')+'</div>';
+  }
+
+  function slider(id,label,val){
+    return '<label class="small muted">'+label+': <span id="'+id+'o" style="font-weight:500;color:var(--color-text-primary);">'+f2(val)+'</span>'
+      +'<br /><input type="range" id="'+id+'" min="-0.95" max="0.95" step="0.05" value="'+val+'" style="width:100%;" /></label>';
+  }
+  function buildCtrls(){
+    document.getElementById('ctrls').innerHTML=
+      slider('a11','a₁₁ (y₁ on its own lag)',A.a11)+slider('a12','a₁₂ (y₂ → y₁)',A.a12)
+      +slider('a21','a₂₁ (y₁ → y₂)',A.a21)+slider('a22','a₂₂ (y₂ on its own lag)',A.a22);
+    ['a11','a12','a21','a22'].forEach(id=>{const el=document.getElementById(id);el.value=A[id];document.getElementById(id+'o').textContent=f2(A[id]);el.addEventListener('input',()=>{A[id]=parseFloat(el.value);document.getElementById(id+'o').textContent=f2(A[id]);build();});});
+  }
+  function mkChart(ctx){
+    return new Chart(ctx,{type:'line',data:{labels:[],datasets:[
+      {data:[],borderColor:Y1,borderWidth:1.8,pointRadius:0,tension:0.1},
+      {data:[],borderColor:Y2,borderWidth:1.8,pointRadius:0,tension:0.1}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC}},x:{grid:{display:false},title:{display:true,text:'horizon h'},ticks:{maxTicksLimit:8}}}}});
+  }
+
+  document.getElementById('preset').addEventListener('click',()=>{A=Object.assign({},DEF);buildCtrls();build();});
+  document.getElementById('mathsBtn').addEventListener('click',()=>{const p=document.getElementById('mathsPanel'),s=p.style.display==='none';p.style.display=s?'block':'none';document.getElementById('mathsBtn').textContent=s?'Hide the maths':'Show the maths';build();});
+
+  irf1=mkChart(document.getElementById('irf1').getContext('2d'));
+  irf2=mkChart(document.getElementById('irf2').getContext('2d'));
+  buildCtrls(); build();
+})();
+</script>
+<style>.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;}</style>
+</body>
+</html>

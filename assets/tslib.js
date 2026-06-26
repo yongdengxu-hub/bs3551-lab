@@ -185,10 +185,79 @@
     return m;
   }
 
+  // ---- GARCH / volatility (Topic 4) ----
+  // sigma^2_t = omega + (alpha + gamma*1[r_{t-1}<0]) r^2_{t-1} + beta sigma^2_{t-1}.
+  // gamma = 0 gives plain GARCH(1,1); gamma > 0 gives the GJR leverage term.
+  function garchSimulate(omega, alpha, beta, gamma, T, r) {
+    const g = gaussFactory(r), burn = 300, n = T + burn;
+    const pers = alpha + beta + (gamma || 0) / 2;
+    let s2 = pers < 1 ? omega / (1 - pers) : omega;
+    let rPrev = Math.sqrt(Math.max(s2, 1e-12)) * g();
+    const ret = [], sig2 = [];
+    for (let t = 1; t <= n; t++) {
+      const lev = gamma ? gamma * (rPrev < 0 ? 1 : 0) : 0;
+      s2 = omega + (alpha + lev) * rPrev * rPrev + beta * s2;
+      if (s2 > 1e8) s2 = 1e8;  // keep an explosive (non-stationary) choice renderable
+      const rt = Math.sqrt(Math.max(s2, 1e-12)) * g();
+      if (t > burn) { ret.push(rt); sig2.push(s2); }
+      rPrev = rt;
+    }
+    return { r: ret, sigma2: sig2 };
+  }
+  // Multi-step variance forecast: sigma^2_{t+h|t} -> unconditional variance.
+  function garchForecast(omega, alpha, beta, gamma, lastR, lastS2, H) {
+    const pers = alpha + beta + (gamma || 0) / 2;
+    const lev = gamma ? gamma * (lastR < 0 ? 1 : 0) : 0;
+    let s2 = omega + (alpha + lev) * lastR * lastR + beta * lastS2;
+    const out = [s2];
+    for (let h = 2; h <= H; h++) { s2 = omega + pers * s2; out.push(s2); }
+    return out;
+  }
+
+  // ---- Regime switching: TAR / STAR (Topic 5) ----
+  // Self-exciting two-regime AR(1) on the lagged level. smooth=false is a sharp
+  // threshold (TAR); smooth=true uses the logistic transition (STAR).
+  function logisticG(z, gamma, r) { return 1 / (1 + Math.exp(-gamma * (z - r))); }
+  function regimeSimulate(p, T, r) {
+    const g = gaussFactory(r), burn = 200, n = T + burn, y = [], w = [];
+    let prev = p.r;
+    for (let t = 0; t < n; t++) {
+      const G = p.smooth ? logisticG(prev, p.gamma, p.r) : (prev > p.r ? 1 : 0);
+      const m = (1 - G) * (p.c1 + p.phi1 * prev) + G * (p.c2 + p.phi2 * prev);
+      const yt = m + p.sigma * g();
+      if (t >= burn) { y.push(yt); w.push(G); }
+      prev = yt;
+    }
+    return { y: y, w: w };
+  }
+
+  // ---- VAR(1) & impulse responses (Topic 7) ----
+  function mat2mul(X, Y) {
+    return [
+      [X[0][0]*Y[0][0]+X[0][1]*Y[1][0], X[0][0]*Y[0][1]+X[0][1]*Y[1][1]],
+      [X[1][0]*Y[0][0]+X[1][1]*Y[1][0], X[1][0]*Y[0][1]+X[1][1]*Y[1][1]]
+    ];
+  }
+  // Orthogonal-shock IRF for a bivariate VAR(1): psi_h = A^h.
+  // out[h][i][j] = response of variable i to a unit shock in variable j at horizon h.
+  function var1IRF(A, H) {
+    let M = [[1, 0], [0, 1]]; const out = [M];
+    for (let h = 1; h <= H; h++) { M = mat2mul(A, M); out.push(M); }
+    return out;
+  }
+  // Stationary iff both eigenvalues of A lie inside the unit circle.
+  function var1Stationary(A) {
+    const tr = A[0][0] + A[1][1], det = A[0][0]*A[1][1] - A[0][1]*A[1][0], disc = tr*tr - 4*det;
+    if (disc >= 0) { const s = Math.sqrt(disc); return Math.abs((tr+s)/2) < 1 && Math.abs((tr-s)/2) < 1; }
+    return Math.sqrt(det) < 1;
+  }
+
   global.TS = {
     rng, gaussFactory, rootsOutside, isStationary, isInvertible,
     psiWeights, theoreticalACF, pacfFromACF, simulate, sampleACF,
     arForecast, arForecastVar, unconditionalMean,
-    solveLinear, ridgeFit, lassoFit, lassoLambdaMax
+    solveLinear, ridgeFit, lassoFit, lassoLambdaMax,
+    garchSimulate, garchForecast, logisticG, regimeSimulate,
+    mat2mul, var1IRF, var1Stationary
   };
 })(window);
