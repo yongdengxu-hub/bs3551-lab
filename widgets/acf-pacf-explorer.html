@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ACF / PACF explorer — BS3551</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <div style="flex:1 1 auto;">
+      <div class="code">BS3551 · interactive lab</div>
+      <h1>ACF / PACF explorer</h1>
+      <p class="sub">Pick a model, see its fingerprint. This is exam question 1, every year.</p>
+    </div>
+    <a class="crumb" href="../index.html">← back to lab</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="muted" style="margin-top:18px;">
+    Every stationary process leaves a signature in its autocorrelation (ACF) and partial
+    autocorrelation (PACF). The whole identification game: <b>AR</b> tails off in the ACF but
+    cuts off in the PACF; <b>MA</b> is the mirror image; <b>ARMA</b> tails off in both. Change the
+    model below and watch all three plots move together.
+  </p>
+
+  <div class="card">
+    <div id="topbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div id="presetRow" style="display:flex;flex-wrap:wrap;gap:6px;">
+        <button class="chip" data-model="wn">White noise</button>
+        <button class="chip" data-model="ar1">AR(1)</button>
+        <button class="chip" data-model="ar2">AR(2)</button>
+        <button class="chip" data-model="ma1">MA(1)</button>
+        <button class="chip" data-model="ma2">MA(2)</button>
+        <button class="chip" data-model="arma11">ARMA(1,1)</button>
+        <button class="chip" data-model="rw">Random walk</button>
+      </div>
+      <button id="quizBtn">◎ Quiz me</button>
+    </div>
+
+    <div id="sliderRow" style="display:flex;flex-wrap:wrap;gap:18px;margin-bottom:10px;"></div>
+
+    <div id="statusRow" style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;">
+      <span id="statBadge" class="badge"></span>
+      <span id="caption" class="small muted"></span>
+      <button id="mathsBtn" style="margin-left:auto;font-size:12px;padding:4px 9px;">Show the maths</button>
+    </div>
+    <div id="mathsPanel" class="maths" style="display:none;margin:8px 0 4px;"></div>
+
+    <div id="quizPanel" style="display:none;margin:6px 0 4px;"></div>
+
+    <div id="pathWrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 2px;">
+        <span class="small muted">Simulated series (T = 200)</span>
+        <button id="reshuffle" style="font-size:12px;padding:3px 8px;">↻ new sample</button>
+      </div>
+      <div style="position:relative;height:140px;"><canvas id="pathChart"></canvas></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;">
+      <div>
+        <div class="small muted" style="margin-bottom:2px;">ACF (autocorrelation)</div>
+        <div style="position:relative;height:185px;"><canvas id="acfChart"></canvas></div>
+      </div>
+      <div>
+        <div class="small muted" style="margin-bottom:2px;">PACF (partial autocorrelation)</div>
+        <div style="position:relative;height:185px;"><canvas id="pacfChart"></canvas></div>
+      </div>
+    </div>
+    <p class="tiny" style="margin-top:8px;">Dashed lines mark the ±95% significance band (±1.96/√T). Bars reaching beyond them are statistically meaningful.</p>
+  </div>
+
+  <h3>How to use it in class</h3>
+  <p class="muted small">Project the quiz, give students 20 seconds per plot, take a show of hands before revealing.
+  Or set it as a 10-minute warm-up before the ARMA tutorial. The "show the maths" panel links each picture to the
+  Yule–Walker / moment derivations they need for the written exam.</p>
+
+  <footer class="site">BS3551 Financial Econometrics · interactive lab · no login, no data collected.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="../assets/tslib.js"></script>
+<script>
+(function(){
+  const Chart = window.Chart, T = window.TS;
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color = isDark ? '#C9C7BD' : '#52514C';
+  Chart.defaults.font.size = 11;
+  const gridC = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+  const BLUE='#378ADD', TEAL='#1D9E75', PATH='#2D7DD2', BAND = isDark?'rgba(240,153,123,0.75)':'rgba(216,90,48,0.8)';
+  const K=14, N=200, band=1.96/Math.sqrt(N), f2=x=>Number(x).toFixed(2), f3=x=>Number(x).toFixed(3);
+
+  const MODELS={
+    wn:{name:'White noise'},
+    ar1:{name:'AR(1)',uses:['phi1'],def:{phi1:0.7}},
+    ar2:{name:'AR(2)',uses:['phi1','phi2'],def:{phi1:0.5,phi2:0.3}},
+    ma1:{name:'MA(1)',uses:['theta1'],def:{theta1:0.6}},
+    ma2:{name:'MA(2)',uses:['theta1','theta2'],def:{theta1:0.5,theta2:0.3}},
+    arma11:{name:'ARMA(1,1)',uses:['phi1','theta1'],def:{phi1:0.6,theta1:0.4}},
+    rw:{name:'Random walk'}
+  };
+  const RANGE={phi1:[-1.9,1.9],phi2:[-0.95,0.95],theta1:[-1.9,1.9],theta2:[-0.95,0.95]};
+  const GLYPH={phi1:'φ₁',phi2:'φ₂',theta1:'θ₁',theta2:'θ₂'};
+
+  let modelType='ar1';
+  const cur={phi1:0.7,phi2:0.3,theta1:0.6,theta2:0.3};
+  let seed=12345, quizMode=false, quizModel=null, quizAnswered=false, score=0, attempts=0;
+
+  function getCoeffs(){
+    switch(modelType){
+      case 'wn': return {phi:[],theta:[]};
+      case 'rw': return {phi:[1],theta:[]};
+      case 'ar1': return {phi:[cur.phi1],theta:[]};
+      case 'ar2': return {phi:[cur.phi1,cur.phi2],theta:[]};
+      case 'ma1': return {phi:[],theta:[cur.theta1]};
+      case 'ma2': return {phi:[],theta:[cur.theta1,cur.theta2]};
+      case 'arma11': return {phi:[cur.phi1],theta:[cur.theta1]};
+    }
+    return {phi:[],theta:[]};
+  }
+
+  let pathChart,acfChart,pacfChart;
+  function mkBar(ctx,color){
+    return new Chart(ctx,{type:'bar',data:{labels:Array.from({length:K},(_,i)=>i+1),datasets:[
+      {data:new Array(K).fill(0),backgroundColor:color,barPercentage:0.55,categoryPercentage:0.85,order:2},
+      {type:'line',data:new Array(K).fill(band),borderColor:BAND,borderWidth:1,borderDash:[4,3],pointRadius:0,order:1},
+      {type:'line',data:new Array(K).fill(-band),borderColor:BAND,borderWidth:1,borderDash:[4,3],pointRadius:0,order:1}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{min:-1,max:1,grid:{color:gridC},ticks:{stepSize:0.5}},x:{grid:{display:false},title:{display:true,text:'lag k'}}}}});
+  }
+  function mkPath(ctx){
+    return new Chart(ctx,{type:'line',data:{labels:Array.from({length:N},(_,i)=>i+1),datasets:[{data:new Array(N).fill(0),borderColor:PATH,borderWidth:1.1,pointRadius:0,tension:0.1}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC}},x:{display:false,grid:{display:false}}}}});
+  }
+
+  function compute(){
+    const {phi,theta}=getCoeffs(); const stat=T.isStationary(phi);
+    let rho;
+    if(stat){ rho=T.theoreticalACF(phi,theta,K); }
+    else { rho=T.sampleACF(T.simulate(phi,theta,2000,T.rng(999)),K); }
+    return {phi,theta,stat,rho,acf:rho.slice(1),pacf:T.pacfFromACF(rho,K).slice(1)};
+  }
+  function captionFor(stat){
+    if(!stat && modelType==='rw') return 'Random walk: non-stationary. The ACF stays near 1 and decays only very slowly.';
+    if(!stat) return 'Non-stationary: the ACF dies out very slowly — this is not a stationary ARMA process.';
+    switch(modelType){
+      case 'wn': return 'White noise: no autocorrelation, every bar sits inside the band.';
+      case 'ar1': case 'ar2': return 'AR(p): the ACF tails off (geometric or damped wave); the PACF cuts off after lag p.';
+      case 'ma1': case 'ma2': return 'MA(q): the ACF cuts off after lag q; the PACF tails off.';
+      case 'arma11': return 'ARMA(1,1): both the ACF and PACF tail off — neither cuts off cleanly.';
+    }
+    return '';
+  }
+  function setBadge(stat){
+    const el=document.getElementById('statBadge');
+    el.className='badge '+(stat?'ok':'bad'); el.textContent=stat?'stationary':'non-stationary';
+  }
+  function equationFor(){
+    const p=f2(cur.phi1), p2=f2(cur.phi2), t1=f2(cur.theta1), t2=f2(cur.theta2);
+    switch(modelType){
+      case 'wn': return 'y<sub>t</sub> = ε<sub>t</sub>';
+      case 'rw': return 'y<sub>t</sub> = y<sub>t−1</sub> + ε<sub>t</sub>';
+      case 'ar1': return 'y<sub>t</sub> = '+p+' y<sub>t−1</sub> + ε<sub>t</sub>';
+      case 'ar2': return 'y<sub>t</sub> = '+p+' y<sub>t−1</sub> + '+p2+' y<sub>t−2</sub> + ε<sub>t</sub>';
+      case 'ma1': return 'y<sub>t</sub> = ε<sub>t</sub> + '+t1+' ε<sub>t−1</sub>';
+      case 'ma2': return 'y<sub>t</sub> = ε<sub>t</sub> + '+t1+' ε<sub>t−1</sub> + '+t2+' ε<sub>t−2</sub>';
+      case 'arma11': return 'y<sub>t</sub> = '+p+' y<sub>t−1</sub> + ε<sub>t</sub> + '+t1+' ε<sub>t−1</sub>';
+    }
+  }
+  function formulaHint(){
+    switch(modelType){
+      case 'ar1': return 'Closed form: ρ<sub>k</sub> = φ₁<sup>k</sup>. The PACF is φ₁ at lag 1 and 0 afterwards.';
+      case 'ar2': return 'Yule–Walker: ρ₁ = φ₁ / (1 − φ₂), then ρ<sub>k</sub> = φ₁ρ<sub>k−1</sub> + φ₂ρ<sub>k−2</sub>. PACF cuts off after lag 2.';
+      case 'ma1': return 'Closed form: ρ₁ = θ₁ / (1 + θ₁²) and ρ<sub>k</sub> = 0 for k ≥ 2. The PACF tails off.';
+      case 'ma2': return 'ρ<sub>k</sub> = 0 for k ≥ 3 (an MA(q) has zero autocorrelation beyond lag q).';
+      case 'arma11': return 'No clean cut-off: the ACF decays like an AR after lag 1, the PACF like an MA.';
+      case 'wn': return 'All theoretical autocorrelations are exactly 0.';
+      case 'rw': return 'Variance grows with t, so there is no fixed unconditional ACF — the sample ACF decays only slowly.';
+    }
+    return '';
+  }
+  function renderMaths(res){
+    const r=res.rho, pa=T.pacfFromACF(res.rho,K);
+    const rhoLine=[1,2,3,4].map(k=>'ρ'+'₁₂₃₄'[k-1]+' = '+f3(r[k])).join('   ');
+    const pacLine=[1,2,3,4].map(k=>'φ'+'₁₂₃₄'[k-1]+'₍'+'₁₂₃₄'[k-1]+'₎ = '+f3(pa[k])).join('   ');
+    document.getElementById('mathsPanel').innerHTML =
+      '<div style="margin-bottom:6px;"><span class="mono">'+equationFor()+'</span></div>'
+      +'<div class="small" style="margin-bottom:6px;">'+formulaHint()+'</div>'
+      +'<div class="mono" style="margin-bottom:3px;">'+rhoLine+'</div>'
+      +'<div class="mono">'+pacLine+'</div>';
+  }
+
+  function buildSliders(){
+    const row=document.getElementById('sliderRow'); row.innerHTML='';
+    const uses=(MODELS[modelType]&&MODELS[modelType].uses)||[];
+    if(uses.length===0){ row.style.display='none'; return; } row.style.display='flex';
+    uses.forEach(id=>{
+      const wrap=document.createElement('div'); wrap.style.cssText='display:flex;align-items:center;gap:8px;';
+      const lab=document.createElement('label'); lab.style.cssText='font-size:15px;color:var(--color-text-secondary);min-width:16px;'; lab.innerHTML=GLYPH[id];
+      const inp=document.createElement('input'); inp.type='range'; inp.min=RANGE[id][0]; inp.max=RANGE[id][1]; inp.step=0.05; inp.value=cur[id]; inp.style.width='130px';
+      const out=document.createElement('span'); out.style.cssText='font-size:13px;font-weight:500;min-width:38px;'; out.textContent=f2(cur[id]);
+      inp.addEventListener('input',()=>{cur[id]=parseFloat(inp.value);out.textContent=f2(cur[id]);update();});
+      wrap.appendChild(lab);wrap.appendChild(inp);wrap.appendChild(out); row.appendChild(wrap);
+    });
+  }
+  function update(){
+    if(quizMode) return;
+    const res=compute();
+    acfChart.data.datasets[0].data=res.acf; acfChart.update('none');
+    pacfChart.data.datasets[0].data=res.pacf; pacfChart.update('none');
+    pathChart.data.datasets[0].data=T.simulate(res.phi,res.theta,N,T.rng(seed)); pathChart.update('none');
+    setBadge(res.stat);
+    document.getElementById('caption').textContent=captionFor(res.stat);
+    if(document.getElementById('mathsPanel').style.display!=='none') renderMaths(res);
+  }
+
+  document.querySelectorAll('.chip').forEach(b=>{
+    if(!b.dataset.model) return;
+    b.addEventListener('click',()=>{
+      if(quizMode) exitQuiz();
+      modelType=b.dataset.model;
+      document.querySelectorAll('.chip').forEach(x=>{ if(x.dataset.model) x.classList.toggle('active',x===b); });
+      const m=MODELS[modelType]; if(m&&m.def) Object.assign(cur,m.def);
+      buildSliders(); update();
+    });
+  });
+  document.getElementById('reshuffle').addEventListener('click',()=>{ if(quizMode) return; seed=(seed+777)|0; const res=compute(); pathChart.data.datasets[0].data=T.simulate(res.phi,res.theta,N,T.rng(seed)); pathChart.update('none'); });
+  document.getElementById('mathsBtn').addEventListener('click',()=>{
+    const p=document.getElementById('mathsPanel'); const show=p.style.display==='none';
+    p.style.display=show?'block':'none'; document.getElementById('mathsBtn').textContent=show?'Hide the maths':'Show the maths';
+    if(show) renderMaths(compute());
+  });
+
+  function classOf(m){return ({wn:'White noise',ar1:'AR',ar2:'AR',ma1:'MA',ma2:'MA',arma11:'ARMA'})[m];}
+  function whyClass(m){
+    if(m==='wn')return 'White noise has no structure, so all bars stay inside the band.';
+    if(m==='ar1'||m==='ar2')return 'AR: the PACF cuts off (after lag '+(m==='ar1'?'1':'2')+'), the ACF tails off.';
+    if(m==='ma1'||m==='ma2')return 'MA: the ACF cuts off (after lag '+(m==='ma1'?'1':'2')+'), the PACF tails off.';
+    if(m==='arma11')return 'ARMA: both the ACF and PACF tail off, neither cuts off sharply.';
+    return '';
+  }
+  function randCoeffs(model){
+    const S=()=>(Math.random()<0.5?-1:1);
+    if(model==='ar1') return {phi:[+((0.4+Math.random()*0.45)*S()).toFixed(2)],theta:[]};
+    if(model==='ar2'){ const phi2=+(Math.random()*1.2-0.5).toFixed(2); const lo=phi2-1+0.08,hi=1-phi2-0.08; return {phi:[+(lo+Math.random()*(hi-lo)).toFixed(2),phi2],theta:[]}; }
+    if(model==='ma1') return {phi:[],theta:[+((0.4+Math.random()*0.45)*S()).toFixed(2)]};
+    if(model==='ma2') return {phi:[],theta:[+((0.3+Math.random()*0.5)*S()).toFixed(2),+(Math.random()*0.7-0.35).toFixed(2)]};
+    if(model==='arma11') return {phi:[+((0.4+Math.random()*0.4)*S()).toFixed(2)],theta:[+((0.3+Math.random()*0.4)*S()).toFixed(2)]};
+    return {phi:[],theta:[]};
+  }
+  function startQuiz(){
+    quizMode=true;
+    document.getElementById('sliderRow').style.display='none';
+    document.getElementById('statusRow').style.display='none';
+    document.getElementById('mathsPanel').style.display='none';
+    document.getElementById('mathsBtn').textContent='Show the maths';
+    document.getElementById('pathWrap').style.display='none';
+    const pr=document.getElementById('presetRow'); pr.style.opacity='0.3'; pr.style.pointerEvents='none';
+    document.getElementById('quizBtn').textContent='✕ Exit quiz';
+    nextQuiz();
+  }
+  function nextQuiz(){
+    const pool=['ar1','ar2','ma1','ma2','arma11','wn'];
+    quizModel=pool[Math.floor(Math.random()*pool.length)];
+    const c=randCoeffs(quizModel); quizAnswered=false;
+    const rho=T.theoreticalACF(c.phi,c.theta,K);
+    acfChart.data.datasets[0].data=rho.slice(1); acfChart.update('none');
+    pacfChart.data.datasets[0].data=T.pacfFromACF(rho,K).slice(1); pacfChart.update('none');
+    renderQuizPanel();
+  }
+  function renderQuizPanel(){
+    const p=document.getElementById('quizPanel'); p.style.display='block';
+    const opts=['White noise','AR','MA','ARMA'];
+    p.innerHTML='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
+      +'<span style="font-size:14px;font-weight:500;">Which model class produced these plots?</span>'
+      +'<span class="tiny" id="qscore" style="margin-left:auto;">Score '+score+' / '+attempts+'</span></div>'
+      +'<div id="qopts" style="display:flex;gap:8px;flex-wrap:wrap;">'
+      +opts.map(o=>'<button class="qopt btn" data-ans="'+o+'">'+o+'</button>').join('')
+      +'</div><div id="qfeedback" class="small" style="margin-top:10px;min-height:18px;"></div>';
+    p.querySelectorAll('.qopt').forEach(b=>b.addEventListener('click',()=>answerQuiz(b.dataset.ans)));
+  }
+  function answerQuiz(ans){
+    if(quizAnswered) return; quizAnswered=true; attempts++;
+    const correct=classOf(quizModel), ok=ans===correct; if(ok) score++;
+    document.querySelectorAll('#qopts .qopt').forEach(b=>{b.style.pointerEvents='none'; if(b.dataset.ans===correct){b.style.background='var(--color-background-success)';b.style.color='var(--color-text-success)';b.style.borderColor='var(--color-border-success)';} else if(b.dataset.ans===ans){b.style.background='var(--color-background-danger)';b.style.color='var(--color-text-danger)';}});
+    document.getElementById('qscore').textContent='Score '+score+' / '+attempts;
+    document.getElementById('qfeedback').innerHTML='<span style="color:'+(ok?'var(--color-text-success)':'var(--color-text-danger)')+';font-weight:500;">'
+      +(ok?'Correct. ':'Not quite. ')+'</span>It was '+MODELS[quizModel].name+'. '+whyClass(quizModel)
+      +' <button id="nextQ" class="btn" style="margin-left:6px;padding:4px 12px;">Next →</button>';
+    document.getElementById('nextQ').addEventListener('click',nextQuiz);
+  }
+  function exitQuiz(){
+    quizMode=false;
+    document.getElementById('quizPanel').style.display='none';
+    document.getElementById('sliderRow').style.display='';
+    document.getElementById('statusRow').style.display='flex';
+    document.getElementById('pathWrap').style.display='';
+    const pr=document.getElementById('presetRow'); pr.style.opacity=''; pr.style.pointerEvents='';
+    document.getElementById('quizBtn').textContent='◎ Quiz me';
+    buildSliders(); update();
+  }
+  document.getElementById('quizBtn').addEventListener('click',()=>{ quizMode?exitQuiz():startQuiz(); });
+
+  pathChart=mkPath(document.getElementById('pathChart').getContext('2d'));
+  acfChart=mkBar(document.getElementById('acfChart').getContext('2d'),BLUE);
+  pacfChart=mkBar(document.getElementById('pacfChart').getContext('2d'),TEAL);
+  document.querySelector('.chip[data-model="ar1"]').classList.add('active');
+  buildSliders(); update();
+})();
+</script>
+</body>
+</html>

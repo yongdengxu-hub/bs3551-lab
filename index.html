@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BS3551 interactive lab — Financial Econometrics</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <div style="flex:1 1 auto;">
+      <div class="code">Cardiff University · BS3551</div>
+      <h1>Financial Econometrics — interactive lab</h1>
+      <p class="sub">Play with the models, quiz yourself, ask the tutor. Built to go with the lectures and tutorials.</p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="muted" style="margin-top:18px;">
+    These tools turn the trickiest parts of the module into something you can move with your hands. Drag a
+    parameter, watch the autocorrelation change; push a forecast out and see the interval fan. Everything runs in
+    your browser, with no login and nothing collected. Best used right before or after the matching tutorial.
+  </p>
+
+  <h2>Interactive tools</h2>
+  <div class="grid">
+
+    <a class="card" href="widgets/acf-pacf-explorer.html" style="text-decoration:none;color:inherit;">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+        <h3 style="margin:.1rem 0;">ACF / PACF explorer</h3><span class="tag live">live</span>
+      </div>
+      <p class="small muted" style="margin:.3rem 0 0;">See how AR, MA and ARMA models leave different fingerprints in the ACF and PACF. Includes a "name that model" quiz. <span class="tiny">(Topic 2 · exam Q1)</span></p>
+    </a>
+
+    <a class="card" href="widgets/forecast-intervals.html" style="text-decoration:none;color:inherit;">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+        <h3 style="margin:.1rem 0;">Forecasts &amp; prediction intervals</h3><span class="tag live">live</span>
+      </div>
+      <p class="small muted" style="margin:.3rem 0 0;">Build multi-step AR forecasts and watch the 95% interval fan out toward the long-run mean. <span class="tiny">(Topic 2 · exam Q2)</span></p>
+    </a>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+        <h3 style="margin:.1rem 0;">GARCH volatility</h3><span class="tag soon">planned</span>
+      </div>
+      <p class="small muted" style="margin:.3rem 0 0;">Tune ω, α, β and watch volatility clustering, persistence and the α+β&lt;1 condition. <span class="tiny">(Topic 4 · exam Q3)</span></p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+        <h3 style="margin:.1rem 0;">Regime switching: TAR / STAR</h3><span class="tag soon">planned</span>
+      </div>
+      <p class="small muted" style="margin:.3rem 0 0;">Compare a sharp threshold with a smooth transition and see how regimes drive the forecast. <span class="tiny">(Topic 5 · exam Q4)</span></p>
+    </div>
+
+    <a class="card" href="widgets/lasso-vs-ols.html" style="text-decoration:none;color:inherit;">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+        <h3 style="margin:.1rem 0;">LASSO vs OLS</h3><span class="tag live">live</span>
+      </div>
+      <p class="small muted" style="margin:.3rem 0 0;">Slide the penalty λ and watch coefficients shrink to zero (LASSO selects, Ridge only shrinks), and see why regularisation beats OLS when k is large. <span class="tiny">(Topic 6 · exam Q5)</span></p>
+    </a>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+        <h3 style="margin:.1rem 0;">VAR &amp; impulse responses</h3><span class="tag soon">planned</span>
+      </div>
+      <p class="small muted" style="margin:.3rem 0 0;">Shock one variable in a bivariate VAR and trace the impulse responses through the system. <span class="tiny">(Topic 7 · exam Q6)</span></p>
+    </div>
+
+  </div>
+
+  <h2>Ask the tutor</h2>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+      <h3 style="margin:.1rem 0;">BS3551 AI tutor</h3><span class="tag soon">set up by lecturer</span>
+    </div>
+    <p class="small muted" style="margin:.3rem 0 .6rem;">A chatbot grounded in the lecture notes and tutorials that walks you through problems step by step,
+    rather than just handing over answers. It can be wrong, so always check against the notes.</p>
+    <a class="btn" href="tutor/SETUP_GUIDE.md">Setup guide (for the lecturer) →</a>
+  </div>
+
+  <footer class="site">
+    BS3551 Financial Econometrics · interactive lab. Tools run client-side; no accounts, no tracking.
+    Maths computed from first principles in <span class="mono">assets/tslib.js</span>.
+  </footer>
+</main>
+</body>
+</html>

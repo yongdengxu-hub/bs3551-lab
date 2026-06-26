@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LASSO vs OLS — BS3551</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <div style="flex:1 1 auto;">
+      <div class="code">BS3551 · interactive lab</div>
+      <h1>LASSO vs OLS</h1>
+      <p class="sub">Why a penalty beats least squares when you have too many predictors. Exam question 5.</p>
+    </div>
+    <a class="crumb" href="../index.html">← back to lab</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="muted" style="margin-top:18px;">
+    There are <span id="kInline">12</span> candidate predictors (think of them as candidate lags), but only three
+    actually drive the outcome. OLS fits all of them and chases the noise; a penalty pulls the useless coefficients
+    back. <b>LASSO</b> (an L1 penalty) sets them to <i>exactly</i> zero, so it selects a model. <b>Ridge</b> (L2)
+    shrinks everything but keeps it. Slide the penalty λ and watch the coefficients, and the train-vs-test gap, respond.
+  </p>
+
+  <div class="card">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="display:flex;gap:8px;">
+        <button class="chip method active" data-m="lasso">LASSO (L1)</button>
+        <button class="chip method" data-m="ridge">Ridge (L2)</button>
+      </div>
+      <button id="reseed" style="font-size:12px;padding:4px 9px;">↻ new sample</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:14px;" id="ctrls"></div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:8px;">
+      <div class="metric" id="mc-method"></div>
+      <div class="metric" id="mc-nz"></div>
+      <div class="metric" id="mc-tr"></div>
+      <div class="metric" id="mc-te"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 2px;flex-wrap:wrap;">
+      <span class="small muted">penalty</span>
+      <input type="range" id="lam" min="0" max="44" step="1" value="22" style="flex:1;min-width:160px;" />
+      <span id="lamOut" class="small" style="font-weight:500;min-width:96px;text-align:right;"></span>
+    </div>
+    <div class="tiny" style="display:flex;justify-content:space-between;margin-bottom:8px;">
+      <span>← stronger penalty (everything shrinks to 0)</span><span>weaker penalty → OLS (overfits)</span>
+    </div>
+
+    <div class="small muted" style="margin-bottom:2px;">Estimated coefficients at this λ (diamonds = true values)</div>
+    <div style="position:relative;height:175px;"><canvas id="barChart"></canvas></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
+      <div>
+        <div class="small muted" style="margin-bottom:2px;">Coefficient paths</div>
+        <div style="position:relative;height:195px;"><canvas id="pathChart"></canvas></div>
+      </div>
+      <div>
+        <div class="small muted" style="margin-bottom:2px;">Train vs test error (RMSE)</div>
+        <div style="position:relative;height:195px;"><canvas id="errChart"></canvas></div>
+      </div>
+    </div>
+    <p class="tiny" style="margin-top:8px;">Blue = the three true predictors; grey = the noise predictors. The vertical line marks your chosen λ.</p>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:6px;">
+      <button id="mathsBtn" style="font-size:12px;padding:4px 9px;">Show the maths</button>
+    </div>
+    <div id="mathsPanel" class="maths" style="display:none;margin-top:8px;"></div>
+  </div>
+
+  <h3>How to use it in class</h3>
+  <p class="muted small">Start on LASSO with the penalty in the middle: only the three real predictors survive (selection).
+  Slide the penalty all the way right and watch every coefficient light up while the test error climbs above the train
+  error, that is overfitting. Switch to Ridge: the test error still improves, but no coefficient is ever exactly zero,
+  so Ridge shrinks but does not select. This is the whole of exam question 5 in two minutes.</p>
+
+  <footer class="site">BS3551 Financial Econometrics · interactive lab · no login, no data collected.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="../assets/tslib.js"></script>
+<script>
+(function(){
+  const Chart=window.Chart, T=window.TS;
+  const isDark=matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color=isDark?'#C9C7BD':'#52514C'; Chart.defaults.font.size=11;
+  const gridC=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)';
+  const BLUE='#378ADD', GRAY='#8d8c84', CORAL='#D85A30', TEAL='#1D9E75';
+  const VL=isDark?'rgba(255,255,255,0.45)':'rgba(0,0,0,0.4)';
+  const f2=x=>Number(x).toFixed(2), f3=x=>Number(x).toFixed(3), f1=x=>Number(x).toFixed(1);
+
+  const SIGNAL={0:2.5,1:-1.8,3:1.2};
+  const signalSet=new Set(Object.keys(SIGNAL).map(Number));
+
+  let method='lasso', n=50, k=12, sigma=1.0, seed=20260626;
+  let data, grid, path, trainErr, testErr, idx=22;
+  let barChart, pathChart, errChart;
+
+  function buildData(){
+    const r=T.rng(seed), g=T.gaussFactory(r), nTe=600, N=n+nTe;
+    const trueB=new Array(k).fill(0); for(const i in SIGNAL){ if(+i<k) trueB[+i]=SIGNAL[i]; }
+    const X=[],y=[];
+    for(let i=0;i<N;i++){const row=new Array(k);for(let j=0;j<k;j++)row[j]=g();let m=0;for(let j=0;j<k;j++)m+=row[j]*trueB[j];X.push(row);y.push(m+sigma*g());}
+    const mean=new Array(k).fill(0),sd=new Array(k).fill(0);
+    for(let j=0;j<k;j++){let s=0;for(let i=0;i<n;i++)s+=X[i][j];mean[j]=s/n;}
+    for(let j=0;j<k;j++){let s=0;for(let i=0;i<n;i++){const d=X[i][j]-mean[j];s+=d*d;}sd[j]=Math.sqrt(s/n)||1;}
+    const Xs=X.map(row=>row.map((v,j)=>(v-mean[j])/sd[j]));
+    let ym=0;for(let i=0;i<n;i++)ym+=y[i];ym/=n;const ys=y.map(v=>v-ym);
+    return {Xtr:Xs.slice(0,n),ytr:ys.slice(0,n),Xte:Xs.slice(n),yte:ys.slice(n),trueB};
+  }
+  function rmse(X,y,b){let s=0;for(let i=0;i<X.length;i++){let p=0;for(let j=0;j<b.length;j++)p+=X[i][j]*b[j];const e=y[i]-p;s+=e*e;}return Math.sqrt(s/X.length);}
+  const nz=b=>b.filter(v=>Math.abs(v)>1e-4).length;
+
+  const vline={id:'vline',afterDraw(c){const i=c.$vl;if(i==null)return;const x=c.scales.x.getPixelForValue(i), y=c.scales.y;c.ctx.save();c.ctx.strokeStyle=VL;c.ctx.setLineDash([4,3]);c.ctx.lineWidth=1;c.ctx.beginPath();c.ctx.moveTo(x,y.top);c.ctx.lineTo(x,y.bottom);c.ctx.stroke();c.ctx.restore();}};
+
+  function rebuild(){
+    data=buildData();
+    const lmax=T.lassoLambdaMax(data.Xtr,data.ytr), M=45;
+    const hi=Math.log10(lmax*2), lo=Math.log10(lmax*1e-3);
+    grid=[]; for(let i=0;i<M;i++) grid.push(Math.pow(10,hi+(lo-hi)*i/(M-1)));
+    if(method==='lasso'){ let prev=null; path=grid.map(l=>{const b=T.lassoFit(data.Xtr,data.ytr,l,prev);prev=b;return b;}); }
+    else path=grid.map(l=>T.ridgeFit(data.Xtr,data.ytr,l));
+    trainErr=path.map(b=>rmse(data.Xtr,data.ytr,b));
+    testErr=path.map(b=>rmse(data.Xte,data.yte,b));
+    idx=testErr.indexOf(Math.min.apply(null,testErr));
+    const lam=document.getElementById('lam'); lam.max=M-1; lam.value=idx;
+    makeCharts();
+    refresh();
+  }
+  function makeCharts(){
+    [barChart,pathChart,errChart].forEach(c=>{if(c)c.destroy();});
+    const labels=grid.map(g=>f1(Math.log10(g)));
+    const catLabels=Array.from({length:k},(_,i)=>(i+1));
+    barChart=new Chart(document.getElementById('barChart').getContext('2d'),{type:'bar',data:{labels:catLabels,datasets:[
+      {data:path[idx],backgroundColor:catLabels.map((_,j)=>signalSet.has(j)?BLUE:GRAY),barPercentage:0.75,order:2},
+      {type:'line',data:data.trueB,showLine:false,pointRadius:4,pointStyle:'rectRot',pointBackgroundColor:CORAL,pointBorderColor:CORAL,order:1}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC},title:{display:true,text:'coefficient'}},x:{grid:{display:false},title:{display:true,text:'predictor'}}}}});
+    const pds=[]; for(let j=0;j<k;j++) pds.push({data:path.map(b=>b[j]),borderColor:signalSet.has(j)?BLUE:GRAY,borderWidth:signalSet.has(j)?1.8:0.8,pointRadius:0,tension:0.1});
+    pathChart=new Chart(document.getElementById('pathChart').getContext('2d'),{type:'line',data:{labels,datasets:pds},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC},title:{display:true,text:'coefficient'}},x:{grid:{display:false},title:{display:true,text:'log₁₀ λ'},ticks:{maxTicksLimit:6}}}},plugins:[vline]});
+    errChart=new Chart(document.getElementById('errChart').getContext('2d'),{type:'line',data:{labels,datasets:[
+      {data:trainErr,borderColor:GRAY,borderWidth:1.6,pointRadius:0,tension:0.1},
+      {data:testErr,borderColor:CORAL,borderWidth:1.8,pointRadius:0,tension:0.1}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC},title:{display:true,text:'RMSE'}},x:{grid:{display:false},title:{display:true,text:'log₁₀ λ'},ticks:{maxTicksLimit:6}}}},plugins:[vline]});
+  }
+  function card(id,label,val,note){document.getElementById(id).innerHTML='<div class="small muted" style="font-size:12px;">'+label+'</div><div style="font-size:20px;font-weight:500;">'+val+'</div>'+(note?'<div class="tiny">'+note+'</div>':'');}
+  function refresh(){
+    const b=path[idx];
+    barChart.data.datasets[0].data=b; barChart.update('none');
+    pathChart.$vl=idx; pathChart.update('none');
+    errChart.$vl=idx; errChart.update('none');
+    card('mc-method','method',method==='lasso'?'LASSO':'Ridge',method==='lasso'?'L1 penalty':'L2 penalty');
+    card('mc-nz','predictors kept',nz(b)+' / '+k, nz(b)<=4?'sparse':'dense');
+    card('mc-tr','train RMSE',f3(trainErr[idx]));
+    card('mc-te','test RMSE',f3(testErr[idx]), idx>=testErr.length-3?'overfitting':(idx<=1?'underfitting':'near best'));
+    document.getElementById('lamOut').textContent='log₁₀λ = '+f2(Math.log10(grid[idx]));
+    if(document.getElementById('mathsPanel').style.display!=='none') renderMaths();
+  }
+  function renderMaths(){
+    const b=path[idx];
+    const obj = method==='lasso'
+      ? 'minimise &nbsp;<span class="mono">(1/2n) Σ(yᵢ − xᵢ′β)² + λ Σ|βⱼ|</span>'
+      : 'minimise &nbsp;<span class="mono">(1/2n) Σ(yᵢ − xᵢ′β)² + (λ/2) Σβⱼ²</span>';
+    const mech = method==='lasso'
+      ? 'The L1 penalty has a kink at 0, so each coordinate update is a <b>soft-threshold</b> β̂ⱼ = S(ρⱼ, λ): small coefficients are set to <b>exactly zero</b>. LASSO therefore <b>selects</b> variables.'
+      : 'The L2 penalty is smooth, giving the closed form β̂ = (X′X/n + λI)⁻¹ X′y/n. Every coefficient is <b>shrunk toward zero but never reaches it</b>. Ridge shrinks, it does not select.';
+    document.getElementById('mathsPanel').innerHTML=
+      '<div style="margin-bottom:6px;">'+obj+'</div>'
+      +'<div class="small" style="margin-bottom:6px;">'+mech+'</div>'
+      +'<div class="small" style="margin-bottom:6px;"><b>Role of λ.</b> λ = 0 is OLS — with k large relative to n it has high variance and overfits (train error low, test error high). λ → ∞ shrinks every coefficient to 0 and underfits. The best λ minimises out-of-sample (cross-validated) error.</div>'
+      +'<div class="small">At this λ: <b>'+nz(b)+'</b> of '+k+' predictors kept, test RMSE = <b>'+f3(testErr[idx])+'</b> (noise sd = '+f1(sigma)+').</div>';
+  }
+
+  function slider(id,label,val,min,max,step){
+    return '<label class="small muted">'+label+': <span id="'+id+'o" style="font-weight:500;color:var(--color-text-primary);">'+val+'</span>'
+      +'<br /><input type="range" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" style="width:100%;" /></label>';
+  }
+  document.getElementById('ctrls').innerHTML=
+    slider('n','train size n',n,15,150,5)+slider('k','predictors k',k,4,30,1)+slider('sigma','noise sd σ',sigma,0.2,3,0.1);
+
+  document.getElementById('n').addEventListener('input',e=>{n=+e.target.value;document.getElementById('no').textContent=n;rebuild();});
+  document.getElementById('k').addEventListener('input',e=>{k=+e.target.value;document.getElementById('ko').textContent=k;document.getElementById('kInline').textContent=k;rebuild();});
+  document.getElementById('sigma').addEventListener('input',e=>{sigma=+e.target.value;document.getElementById('sigmao').textContent=f1(sigma);rebuild();});
+  document.getElementById('lam').addEventListener('input',e=>{idx=+e.target.value;refresh();});
+  document.querySelectorAll('.method').forEach(b=>b.addEventListener('click',()=>{method=b.dataset.m;document.querySelectorAll('.method').forEach(x=>x.classList.toggle('active',x===b));rebuild();}));
+  document.getElementById('reseed').addEventListener('click',()=>{seed=(seed+101)|0;rebuild();});
+  document.getElementById('mathsBtn').addEventListener('click',()=>{const p=document.getElementById('mathsPanel'),s=p.style.display==='none';p.style.display=s?'block':'none';document.getElementById('mathsBtn').textContent=s?'Hide the maths':'Show the maths';if(s)renderMaths();});
+
+  rebuild();
+})();
+</script>
+<style>
+.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;}
+</style>
+</body>
+</html>

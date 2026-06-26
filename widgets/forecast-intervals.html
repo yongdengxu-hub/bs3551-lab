@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forecasts &amp; prediction intervals — BS3551</title>
+<link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <div style="flex:1 1 auto;">
+      <div class="code">BS3551 · interactive lab</div>
+      <h1>Forecasts &amp; prediction intervals</h1>
+      <p class="sub">Watch the point forecast converge and the interval fan out. This is exam question 2.</p>
+    </div>
+    <a class="crumb" href="../index.html">← back to lab</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="muted" style="margin-top:18px;">
+    From the end of the sample, an AR forecast does two things at once: the <b>point forecast</b> decays
+    geometrically toward the unconditional mean μ = c / (1 − φ), and the <b>forecast error</b> grows, so the
+    95% interval fans out and settles at the long-run width. Set the model, read the 1-step interval off the
+    table, then push the horizon out and see why long-horizon forecasts are "just the mean, with wide bands".
+  </p>
+
+  <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button class="chip active" data-order="1">AR(1)</button>
+      <button class="chip" data-order="2">AR(2)</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 18px;align-items:end;">
+      <div id="phiWrap"></div>
+      <div id="phi2Wrap" style="display:none;"></div>
+      <label class="small muted">constant c
+        <br /><input type="number" id="c" value="0.5" step="0.1" />
+      </label>
+      <label class="small muted">shock sd σ
+        <br /><input type="number" id="sigma" value="1.0" step="0.1" min="0.1" />
+      </label>
+      <label class="small muted">last value y<sub>T</sub>
+        <br /><input type="number" id="yT" value="3.0" step="0.5" />
+      </label>
+      <label id="yT1Wrap" class="small muted" style="display:none;">prev value y<sub>T−1</sub>
+        <br /><input type="number" id="yT1" value="2.0" step="0.5" />
+      </label>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;flex-wrap:wrap;">
+      <span class="small muted">horizon</span>
+      <input type="range" id="H" min="1" max="12" step="1" value="8" style="width:160px;" />
+      <span id="Hout" class="small" style="font-weight:500;">8</span>
+      <span id="muBadge" class="badge info" style="margin-left:auto;"></span>
+    </div>
+
+    <div style="position:relative;height:240px;margin-top:8px;"><canvas id="fanChart"></canvas></div>
+    <p class="tiny" style="margin-top:6px;">Solid line: point forecast. Shaded band: 95% prediction interval (±1.96 × forecast-error sd). Dashed line: unconditional mean μ.</p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+      <h3 style="margin:0;">Forecast table</h3>
+      <button id="mathsBtn" style="font-size:12px;padding:4px 9px;">Show the maths</button>
+    </div>
+    <div id="mathsPanel" class="maths" style="display:none;margin:8px 0;"></div>
+    <div style="overflow-x:auto;"><table class="results" id="ftable"></table></div>
+  </div>
+
+  <h3>How to use it in class</h3>
+  <p class="muted small">Give the students the AR(1) numbers (c, φ, σ, y<sub>T</sub>) and ask them to compute the
+  1-step forecast and its 95% interval by hand, then reveal the table to check. Slide φ toward 1 to show how
+  persistence widens the long-run band; slide the horizon out to show the point forecast collapsing onto μ.</p>
+
+  <footer class="site">BS3551 Financial Econometrics · interactive lab · no login, no data collected.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="../assets/tslib.js"></script>
+<script>
+(function(){
+  const Chart=window.Chart, T=window.TS;
+  const isDark=matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color=isDark?'#C9C7BD':'#52514C'; Chart.defaults.font.size=11;
+  const gridC=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)';
+  const LINE='#2D7DD2', BANDFILL=isDark?'rgba(55,138,221,0.20)':'rgba(55,138,221,0.16)', MEAN=isDark?'rgba(240,153,123,0.9)':'rgba(216,90,48,0.9)';
+  const f2=x=>Number(x).toFixed(2), f3=x=>Number(x).toFixed(3);
+
+  let order=1;
+  function readInputs(){
+    const phi1=parseFloat(document.getElementById('phi1').value);
+    const phi=[phi1];
+    if(order===2) phi.push(parseFloat(document.getElementById('phi2').value));
+    const c=parseFloat(document.getElementById('c').value)||0;
+    const sigma=Math.max(0.0001,parseFloat(document.getElementById('sigma').value)||1);
+    const yT=parseFloat(document.getElementById('yT').value)||0;
+    const yT1=parseFloat(document.getElementById('yT1').value)||0;
+    const H=parseInt(document.getElementById('H').value,10);
+    const hist= order===2 ? [yT1,yT] : [yT];
+    return {phi,c,sigma,yT,H,hist};
+  }
+
+  let chart;
+  function mkChart(ctx){
+    return new Chart(ctx,{type:'line',data:{labels:[],datasets:[
+      {label:'lower',data:[],borderColor:'transparent',pointRadius:0,order:3},
+      {label:'upper',data:[],borderColor:'transparent',backgroundColor:BANDFILL,fill:'-1',pointRadius:0,order:3},
+      {label:'forecast',data:[],borderColor:LINE,borderWidth:1.8,pointRadius:2,tension:0.05,order:1},
+      {label:'mean',data:[],borderColor:MEAN,borderWidth:1,borderDash:[5,4],pointRadius:0,order:2}
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{y:{grid:{color:gridC}},x:{grid:{display:false},title:{display:true,text:'steps ahead (h)'}}}}});
+  }
+
+  function update(){
+    const {phi,c,sigma,yT,H,hist}=readInputs();
+    const stat=T.isStationary(phi);
+    const fc=T.arForecast(phi,c,hist,H);
+    const va=T.arForecastVar(phi,sigma*sigma,H);
+    const se=va.map(Math.sqrt);
+    const mu=T.unconditionalMean(phi,c);
+
+    const labels=[], pt=[], lo=[], hi=[], mn=[];
+    for(let h=0;h<=H;h++){
+      labels.push(h);
+      if(h===0){ pt.push(yT); lo.push(yT); hi.push(yT); }
+      else { pt.push(fc[h-1]); lo.push(fc[h-1]-1.96*se[h-1]); hi.push(fc[h-1]+1.96*se[h-1]); }
+      mn.push(isFinite(mu)?mu:null);
+    }
+    chart.data.labels=labels;
+    chart.data.datasets[0].data=lo;
+    chart.data.datasets[1].data=hi;
+    chart.data.datasets[2].data=pt;
+    chart.data.datasets[3].data=mn;
+    chart.update('none');
+
+    document.getElementById('Hout').textContent=H;
+    const mb=document.getElementById('muBadge');
+    if(stat && isFinite(mu)){ mb.className='badge info'; mb.textContent='μ = '+f2(mu); }
+    else { mb.className='badge bad'; mb.textContent='non-stationary (φ sum ≥ 1)'; }
+
+    let rows='<thead><tr><th>h</th><th>forecast ŷ<sub>T+h</sub></th><th>se(e)</th><th>95% lower</th><th>95% upper</th></tr></thead><tbody>';
+    for(let h=1;h<=H;h++){
+      rows+='<tr><td>'+h+'</td><td>'+f3(fc[h-1])+'</td><td>'+f3(se[h-1])+'</td><td>'+f3(fc[h-1]-1.96*se[h-1])+'</td><td>'+f3(fc[h-1]+1.96*se[h-1])+'</td></tr>';
+    }
+    document.getElementById('ftable').innerHTML=rows+'</tbody>';
+
+    if(document.getElementById('mathsPanel').style.display!=='none') renderMaths(phi,c,sigma,hist,fc,se,mu);
+  }
+
+  function renderMaths(phi,c,sigma,hist,fc,se,mu){
+    const yT=hist[hist.length-1];
+    let pointEq, oneStep;
+    if(order===1){
+      pointEq='ŷ<sub>T+h</sub> = c + φ₁·ŷ<sub>T+h−1</sub> &nbsp;→&nbsp; here ŷ<sub>T+1</sub> = '+f2(c)+' + '+f2(phi[0])+'×'+f2(yT)+' = <b>'+f3(fc[0])+'</b>';
+      oneStep='Var(e<sub>T+1</sub>) = σ² so se = σ = '+f2(sigma)+'. 95% interval: '+f3(fc[0])+' ± 1.96×'+f2(sigma)+' = ['+f3(fc[0]-1.96*sigma)+', '+f3(fc[0]+1.96*sigma)+'].';
+    } else {
+      pointEq='ŷ<sub>T+h</sub> = c + φ₁·ŷ<sub>T+h−1</sub> + φ₂·ŷ<sub>T+h−2</sub> &nbsp;→&nbsp; ŷ<sub>T+1</sub> = '+f2(c)+' + '+f2(phi[0])+'×'+f2(hist[1])+' + '+f2(phi[1])+'×'+f2(hist[0])+' = <b>'+f3(fc[0])+'</b>';
+      oneStep='Var(e<sub>T+1</sub>) = σ², so the 1-step se = σ = '+f2(sigma)+'. 95% interval: '+f3(fc[0])+' ± 1.96σ.';
+    }
+    document.getElementById('mathsPanel').innerHTML=
+      '<div class="small" style="margin-bottom:6px;"><b>Point forecast (recursion).</b><br /><span class="mono">'+pointEq+'</span></div>'
+      +'<div class="small" style="margin-bottom:6px;"><b>Forecast-error variance.</b> Var(e<sub>T+h</sub>) = σ²(ψ₀² + ψ₁² + … + ψ²<sub>h−1</sub>)'
+      +(order===1?', which for AR(1) is σ²(1 − φ<sup>2h</sup>)/(1 − φ²).':'.')+'</div>'
+      +'<div class="small" style="margin-bottom:6px;"><b>1-step interval.</b> '+oneStep+'</div>'
+      +'<div class="small">As h → ∞ the point forecast → μ = '+(isFinite(mu)?f2(mu):'(undefined)')+' and the interval width settles at the long-run forecast sd.</div>';
+  }
+
+  document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{
+    order=parseInt(b.dataset.order,10);
+    document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('active',x===b));
+    document.getElementById('phi2Wrap').style.display = order===2?'block':'none';
+    document.getElementById('yT1Wrap').style.display = order===2?'block':'none';
+    update();
+  }));
+  document.getElementById('mathsBtn').addEventListener('click',()=>{
+    const p=document.getElementById('mathsPanel'), show=p.style.display==='none';
+    p.style.display=show?'block':'none'; document.getElementById('mathsBtn').textContent=show?'Hide the maths':'Show the maths';
+    if(show) update();
+  });
+
+  function slider(id,label,val,min,max){
+    return '<label class="small muted">'+label+' '+
+      '<br /><span style="display:flex;align-items:center;gap:8px;"><input type="range" id="'+id+'" min="'+min+'" max="'+max+'" step="0.05" value="'+val+'" style="width:110px;" /><span id="'+id+'out" style="font-weight:500;min-width:34px;font-size:13px;">'+f2(val)+'</span></span></label>';
+  }
+  document.getElementById('phiWrap').innerHTML=slider('phi1','persistence φ₁',0.8,-0.95,0.95);
+  document.getElementById('phi2Wrap').innerHTML=slider('phi2','φ₂',-0.3,-0.95,0.95);
+
+  ['phi1','phi2','H'].forEach(id=>document.addEventListener('input',e=>{
+    if(e.target && e.target.id===id){ const o=document.getElementById(id+'out'); if(o) o.textContent=f2(parseFloat(e.target.value)); update(); }
+  }));
+  ['c','sigma','yT','yT1'].forEach(id=>document.getElementById(id).addEventListener('input',update));
+
+  chart=mkChart(document.getElementById('fanChart').getContext('2d'));
+  update();
+})();
+</script>
+</body>
+</html>
