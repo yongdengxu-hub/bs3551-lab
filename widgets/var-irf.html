@@ -62,6 +62,33 @@
     <div id="mathsPanel" class="maths" style="display:none;margin-top:8px;"></div>
   </div>
 
+  <div class="why">
+    <h3>Why this matters — real examples</h3>
+    <p class="lead">The VAR is the workhorse of empirical macro: the standard way to ask "if we shock this, what happens to everything else, and for how long?" The impulse responses you trace here are the exact object used in policy analysis.</p>
+    <div class="exlist">
+      <div class="ex macro">
+        <p class="h"><span class="pill macro">Monetary policy</span>"What does a rate rise actually do?" is an impulse response</p>
+        <p class="b">The central question of empirical macro, tracing a surprise interest-rate hike through inflation, output and unemployment over the following quarters, is literally an IRF from a VAR. Sims won the 2011 Nobel for putting VARs at the centre of this. Shock one variable above and read the response: that <i>is</i> the exercise.</p>
+        <span class="k">↳ The link: every "effect of monetary policy" chart you've seen in a lecture is a VAR impulse response.</span>
+      </div>
+      <div class="ex macro">
+        <p class="h"><span class="pill macro">Monetary policy</span>The famous "price puzzle"</p>
+        <p class="b">Early VARs found that a rate hike seemed to briefly <i>raise</i> inflation, the "price puzzle", which sent macroeconomists back to fix their identifying assumptions. It's a great cautionary tale: an IRF is only as credible as the ordering and identification you impose on the shocks.</p>
+        <span class="k">↳ The link: the widget uses a fixed orthogonal ordering; in real work, choosing that ordering is the hard, contested part.</span>
+      </div>
+      <div class="ex macro">
+        <p class="h"><span class="pill macro">Macro</span>Granger causality: does X help forecast Y?</p>
+        <p class="b">Does money growth Granger-cause inflation? Do oil prices Granger-cause recessions? "Granger causality" just asks whether lags of X improve the forecast of Y, i.e. testing whether the off-diagonal coefficient is zero. It's a statement about prediction, not true causation, a distinction that trips up almost everyone at first.</p>
+        <span class="k">↳ The link: the Granger readouts here are exactly the a₁₂ = 0 / a₂₁ = 0 tests, phrased as "does it help predict?"</span>
+      </div>
+      <div class="ex house">
+        <p class="h"><span class="pill house">Housing &amp; rates</span>Feedback a single equation would miss</p>
+        <p class="b">Interest rates and house prices feed back on each other, as do wages and prices. A one-equation model treats one side as exogenous and misses the loop entirely. A VAR lets both respond to each other, which is why policy institutions forecast with systems rather than single equations.</p>
+        <span class="k">↳ The link: the two off-diagonal coefficients are the feedback channel; set them to zero and the system decouples into two unrelated ARs.</span>
+      </div>
+    </div>
+  </div>
+
   <h3>How to use it in class</h3>
   <p class="muted small">Set a₁₂ = 0 and the "shock to y₂" panel shows y₁ flat, y₂ does not Granger-cause y₁. Give it a
   value and y₁ now responds. Push the diagonal terms up toward 1 and the responses decay more slowly (more persistent

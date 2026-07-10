@@ -70,6 +70,33 @@
     <div id="mathsPanel" class="maths" style="display:none;margin-top:8px;"></div>
   </div>
 
+  <div class="why">
+    <h3>Why this matters — real examples</h3>
+    <p class="lead">Volatility clustering is the single most robust fact about asset returns, and a whole industry is built on forecasting it. Almost everything here is finance, because that is where GARCH earns its keep.</p>
+    <div class="exlist">
+      <div class="ex fin">
+        <p class="h"><span class="pill fin">Financial markets</span>2008 and COVID look identical in one respect</p>
+        <p class="b">In the 2008 crisis and again in March 2020, daily equity volatility didn't just jump, it <i>stayed</i> high for weeks, then slowly calmed. A constant-variance model can't do that; GARCH can, because a big shock feeds a big variance which feeds the next. Set α+β near 0.99 above to reproduce that "calm, then a storm that lingers".</p>
+        <span class="k">↳ The link: the persistence α+β you tune is literally how long a burst of turbulence hangs around.</span>
+      </div>
+      <div class="ex fin">
+        <p class="h"><span class="pill fin">Financial markets</span>The VIX "fear index" is a volatility forecast</p>
+        <p class="b">The VIX you see on the news is essentially the market's forecast of near-term S&amp;P 500 volatility, the same object σ²<sub>t+1</sub> this widget produces. When it spikes toward 80 (2008, 2020), that is the conditional variance blowing up. You are building a toy VIX.</p>
+        <span class="k">↳ The link: the variance-forecast panel on the right is the same quantity a volatility index reports.</span>
+      </div>
+      <div class="ex fin">
+        <p class="h"><span class="pill fin">Regulation</span>Bank capital under Basel is VaR from a volatility model</p>
+        <p class="b">Banks must hold capital against a 1-day (and 10-day) Value at Risk, and VaR = z × σ<sub>t</sub>. A better volatility forecast literally changes how much capital a bank sets aside. The 1-day VaR metric in this widget is the exact quantity the Basel rules are built on.</p>
+        <span class="k">↳ The link: get σ<sub>t</sub> wrong and the bank is either under-capitalised or leaving money idle.</span>
+      </div>
+      <div class="ex fin">
+        <p class="h"><span class="pill fin">Financial markets</span>Leverage: bad news hurts more than good news</p>
+        <p class="b">After Lehman collapsed, volatility rose far more than it did after equally large <i>up</i> days. That asymmetry is the leverage effect, and symmetric GARCH misses it, which is why you switch on the GJR γ term. Turn γ up and watch a negative shock kick volatility higher than a positive one of the same size.</p>
+        <span class="k">↳ The link: the GJR toggle is exactly the fix real risk desks use (GJR / EGARCH) to price this asymmetry.</span>
+      </div>
+    </div>
+  </div>
+
   <h3>How to use it in class</h3>
   <p class="muted small">Start with persistence near 0.95 and point out the breathing band, that is volatility clustering.
   Drag α+β down toward 0.5 and the clustering disappears (returns look like constant-variance noise). Switch to GJR and

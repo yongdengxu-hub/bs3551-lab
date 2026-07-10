@@ -61,6 +61,33 @@
     <div id="mathsPanel" class="maths" style="display:none;margin-top:8px;"></div>
   </div>
 
+  <div class="why">
+    <h3>Why this matters — real examples</h3>
+    <p class="lead">The economy is not one machine with fixed gears; it behaves differently in booms and busts, in calm and crisis. A single linear AR averages those states into one wrong model. Regime switching is how we stop doing that.</p>
+    <div class="exlist">
+      <div class="ex macro">
+        <p class="h"><span class="pill macro">Monetary policy</span>Central banks react nonlinearly to inflation</p>
+        <p class="b">A central bank tolerates inflation drifting inside a comfort zone, then reacts sharply once it breaches a threshold: a TAR-style response, not a smooth linear one. The 2022–23 tightening looked exactly like a regime flip, dovish and then abruptly aggressive once inflation cleared roughly 4–5%.</p>
+        <span class="k">↳ The link: one AR line can't capture "relaxed below the threshold, aggressive above it"; a two-regime model can.</span>
+      </div>
+      <div class="ex macro">
+        <p class="h"><span class="pill macro">Business cycle</span>Expansions and recessions are different worlds</p>
+        <p class="b">Hamilton's regime-switching model, part of the work behind his 2022 Nobel share, formalised what everyone sensed: growth in a recession has different dynamics (deeper, faster) than in an expansion. The NBER and UK recession datings are essentially regime labels stamped on the data.</p>
+        <span class="k">↳ The link: fit a linear AR across a full cycle and you get a model that describes neither regime well.</span>
+      </div>
+      <div class="ex labour">
+        <p class="h"><span class="pill labour">Labour</span>Unemployment rises fast but falls slowly</p>
+        <p class="b">This asymmetry is a textbook regime nonlinearity: the job-loss regime and the job-finding regime move at different speeds, so unemployment rockets up in a downturn and drifts down only gradually in a recovery. STAR's smooth transition captures that gradual change of gear.</p>
+        <span class="k">↳ The link: the smoothness parameter γ you control is exactly "how gradually the economy shifts regime".</span>
+      </div>
+      <div class="ex house">
+        <p class="h"><span class="pill house">Local housing</span>Booms and busts are not mirror images</p>
+        <p class="b">House prices in a boom (momentum, rapid rises) behave differently from a bust, where declines are sticky because sellers refuse to cut. That is a regime switch on the price-change threshold, and it is why linear house-price models fit so badly across a full cycle.</p>
+        <span class="k">↳ The link: the sharp-vs-smooth choice (TAR vs STAR) is really a question about how suddenly a housing market turns.</span>
+      </div>
+    </div>
+  </div>
+
   <h3>How to use it in class</h3>
   <p class="muted small">On STAR, slide γ from small to large and watch the transition curve sharpen from a gentle
   S-shape into the TAR step, that is the single picture that explains "smooth" transition. Set very different

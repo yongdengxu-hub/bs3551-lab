@@ -67,6 +67,33 @@
     <div style="overflow-x:auto;"><table class="results" id="ftable"></table></div>
   </div>
 
+  <div class="why">
+    <h3>Why this matters — real examples</h3>
+    <p class="lead">A point forecast is only half the story; the interval around it is what institutions actually act on. Here is where the fanning interval you just built shows up for real.</p>
+    <div class="exlist">
+      <div class="ex macro">
+        <p class="h"><span class="pill macro">Monetary policy</span>The Bank of England fan chart <i>is</i> a prediction interval</p>
+        <p class="b">Every Monetary Policy Report, the Bank publishes an inflation "fan chart": a central projection with shaded bands that widen the further ahead you look. That widening is exactly the accumulating shock variance you see fanning out here, the honest admission that a two-year-ahead forecast is far more uncertain than a one-quarter one.</p>
+        <span class="k">↳ The link: the fan gets wider for the same reason your interval does, the ψ-weighted variance of future shocks piling up.</span>
+      </div>
+      <div class="ex macro">
+        <p class="h"><span class="pill macro">Macro forecasting</span>Why forecasters always revert to the mean</p>
+        <p class="b">The OBR and IMF forecast GDP growth drifting back toward its long-run average within a few years. That isn't laziness: a stationary AR forecast provably converges to the unconditional mean μ = c/(1 − Σφ). The point path you build in this widget does the same thing.</p>
+        <span class="k">↳ The link: long-horizon macro forecasts are basically "the mean, plus a shrinking correction".</span>
+      </div>
+      <div class="ex fin">
+        <p class="h"><span class="pill fin">Financial markets</span>Value at Risk lives in the tail, not the point</p>
+        <p class="b">A bank barely cares about the point forecast of tomorrow's return (roughly zero). It cares about the lower tail of the interval, the 1st or 5th percentile, because that is the loss it must hold capital against. The prediction interval, not the forecast, is the risk number.</p>
+        <span class="k">↳ The link: risk is the width and the tail of the fan, which is why we compute intervals at all.</span>
+      </div>
+      <div class="ex labour">
+        <p class="h"><span class="pill labour">Labour</span>Near-unit-root series give near-useless long forecasts</p>
+        <p class="b">Because unemployment is so persistent (Σφ close to 1), its intervals fan out very wide very fast: a two-year unemployment forecast carries a huge band. Push the AR coefficients toward 1 in the widget and watch the interval explode. That is why credible labour-market forecasts rarely reach far into the future.</p>
+        <span class="k">↳ The link: the closer Σφ is to 1, the faster uncertainty accumulates, which you can trigger yourself above.</span>
+      </div>
+    </div>
+  </div>
+
   <h3>How to use it in class</h3>
   <p class="muted small">Give the students the AR(1) numbers (c, φ, σ, y<sub>T</sub>) and ask them to compute the
   1-step forecast and its 95% interval by hand, then reveal the table to check. Slide φ toward 1 to show how
