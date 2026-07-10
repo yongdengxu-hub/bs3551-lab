@@ -37,7 +37,7 @@ this file choice is the second layer of defence.
 1. You need a ChatGPT Plus, Team, or Enterprise account.
 2. Go to **Explore GPTs → Create** (or `chatgpt.com/gpts/editor`).
 3. Open the **Configure** tab (skip the chat-based builder).
-4. **Name:** `BS3551 Tutor`. **Description:** "Revision tutor for Cardiff BS3551 Financial Econometrics."
+4. **Name:** `BS3551 Tutor`. **Description:** "Revision tutor for Cardiff BS3551 Econometrics."
 5. **Instructions:** paste the entire body of `SYSTEM_PROMPT.md`.
 6. **Knowledge:** upload the files from Step 0.
 7. **Capabilities:** keep nothing that lets it browse for answers; Code Interpreter is fine if you want it to do

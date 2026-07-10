@@ -1,6 +1,6 @@
 # BS3551 Interactive Lab
 
-A small, no-cost, no-login website that makes the hardest parts of *BS3551 Financial Econometrics*
+A small, no-cost, no-login website that makes the hardest parts of *BS3551 Econometrics*
 (Cardiff, third year) interactive, plus a grounded AI tutor that answers student questions from your own
 notes. Built to sit beside the existing lectures, tutorials and engagements, not replace them.
 
