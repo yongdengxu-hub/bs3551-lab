@@ -79,22 +79,22 @@
       <div class="ex fin">
         <p class="h"><span class="pill fin">Financial markets</span>Stock prices vs returns, and the efficient-market hypothesis</p>
         <p class="b">The FTSE 100 <i>level</i> behaves like a random walk: its ACF sits near 1 and dies away only very slowly, so today's price is your best guess of tomorrow's. Daily <i>returns</i>, though, look like white noise, with almost every ACF bar inside the band. That flat ACF is the empirical face of the efficient-market hypothesis.</p>
-        <span class="k">↳ The link: if past returns showed a big ACF spike, momentum traders could exploit it. Mostly they can't, which is exactly why the return ACF is flat.</span>
+        <span class="k">→ The link: if past returns showed a big ACF spike, momentum traders could exploit it. Mostly they can't, which is exactly why the return ACF is flat.</span>
       </div>
       <div class="ex macro">
         <p class="h"><span class="pill macro">Monetary policy</span>How sticky is UK inflation?</p>
         <p class="b">CPI inflation has an ACF that tails off gradually: a persistent AR process. The Bank of England watches that persistence closely, because a highly persistent series means an energy shock (2022) takes years, not months, to fade, which is part of why Bank Rate stayed high well into 2024.</p>
-        <span class="k">↳ The link: the decay rate in the ACF is essentially how long inflation "remembers" a shock.</span>
+        <span class="k">→ The link: the decay rate in the ACF is essentially how long inflation "remembers" a shock.</span>
       </div>
       <div class="ex house">
         <p class="h"><span class="pill house">Local housing</span>A Cardiff house-price index needs differencing</p>
         <p class="b">A local price index trends upward for years: classic non-stationarity, ACF near 1. You can't fit an ARMA to it directly. You difference it into <i>price growth</i>, which is stationary and forecastable. "Is it I(1)?" is the question every applied housing paper opens with.</p>
-        <span class="k">↳ The link: an ACF that refuses to die tells you to difference first, then model.</span>
+        <span class="k">→ The link: an ACF that refuses to die tells you to difference first, then model.</span>
       </div>
       <div class="ex labour">
         <p class="h"><span class="pill labour">Labour</span>Why unemployment scars last</p>
         <p class="b">The UK unemployment rate is highly persistent (near a unit root): its ACF barely decays over a year. That persistence is the statistical signature of "hysteresis", the idea that recessions leave long-lasting damage, while the PACF cutting off at lag 1 or 2 tells you a low-order AR captures most of the dynamics.</p>
-        <span class="k">↳ The link: persistence you can read straight off the ACF is what makes labour-market shocks so hard to shake.</span>
+        <span class="k">→ The link: persistence you can read straight off the ACF is what makes labour-market shocks so hard to shake.</span>
       </div>
     </div>
   </div>

@@ -81,22 +81,22 @@
       <div class="ex macro">
         <p class="h"><span class="pill macro">Macro forecasting</span>Nowcasting GDP from hundreds of indicators</p>
         <p class="b">Central banks now "nowcast" GDP from hundreds of series (surveys, payments data, even Google search trends), far more predictors than there are quarters of data. OLS collapses: it overfits, and when k &gt; T it isn't even estimable. LASSO picks the handful that actually carry signal.</p>
-        <span class="k">↳ The link: the k &gt; T problem is the entire reason regularisation exists, and it's the setup this widget stages.</span>
+        <span class="k">→ The link: the k &gt; T problem is the entire reason regularisation exists, and it's the setup this widget stages.</span>
       </div>
       <div class="ex fin">
         <p class="h"><span class="pill fin">Financial markets</span>Which of 100 signals actually predict returns?</p>
         <p class="b">Quant funds screen hundreds of candidate return predictors; most are noise. LASSO's ability to set coefficients <i>exactly</i> to zero is automatic signal selection: it hands you a short-list, whereas Ridge never quite drops anything. Slide λ up above and watch predictors switch off one by one.</p>
-        <span class="k">↳ The link: "LASSO selects, Ridge only shrinks" is the whole game, and you can see it happen in the coefficient bars.</span>
+        <span class="k">→ The link: "LASSO selects, Ridge only shrinks" is the whole game, and you can see it happen in the coefficient bars.</span>
       </div>
       <div class="ex house">
         <p class="h"><span class="pill house">Local housing</span>Automated valuations from dozens of features</p>
         <p class="b">A Zoopla- or Rightmove-style "estimated value" prices a house from many features: bedrooms, floor area, distance to a good school, transport, crime. With correlated features and limited local sales, OLS is unstable; a penalty gives a stable, honest valuation. This is how hedonic pricing scales up.</p>
-        <span class="k">↳ The link: correlated predictors + few local sales is precisely when shrinkage beats least squares.</span>
+        <span class="k">→ The link: correlated predictors + few local sales is precisely when shrinkage beats least squares.</span>
       </div>
       <div class="ex macro">
         <p class="h"><span class="pill macro">Macro</span>Predicting recessions</p>
         <p class="b">Models that forecast recessions from many financial and macro variables (yield spreads, credit growth, sentiment) lean on regularisation to avoid overfitting the handful of recessions in the sample. Few events, many candidate predictors: textbook LASSO territory.</p>
-        <span class="k">↳ The link: with only a few past recessions, unpenalised OLS would just memorise them, which is the train-vs-test gap you can watch widen here.</span>
+        <span class="k">→ The link: with only a few past recessions, unpenalised OLS would just memorise them, which is the train-vs-test gap you can watch widen here.</span>
       </div>
     </div>
   </div>
